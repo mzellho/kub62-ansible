@@ -1,0 +1,10 @@
+- name: Run rpi-eeprom-update
+  command: rpi-eeprom-update -a
+  become: true
+  register: eeprom_update
+  changed_when: '"bootloader update pending" in (eeprom_update.stdout | lower)'
+
+- name: Mark reboot needed if EEPROM update applied
+  set_fact:
+    reboot_needed: true
+  when: eeprom_update.changed

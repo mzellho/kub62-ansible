@@ -1,0 +1,8 @@
+- name: Reboot system if any change requires it
+  reboot:
+    msg: 'Reboot after setup of {{ inventory_hostname }}'
+  when: reboot_needed | default(false)
+
+- name: Reset reboot flag
+  set_fact:
+    reboot_needed: false

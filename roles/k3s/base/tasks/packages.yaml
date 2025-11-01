@@ -1,0 +1,6 @@
+- name: Install Longhorn dependencies
+  apt:
+    name:
+      - open-iscsi
+    state: present
+  become: true

@@ -1,0 +1,20 @@
+- name: Read cmdline.txt
+  slurp:
+    path: /boot/firmware/cmdline.txt
+  register: cmdline_raw
+  become: true
+
+- name: Ensure cgroup flags are present in cmdline.txt
+  lineinfile:
+    path: /boot/firmware/cmdline.txt
+    regexp: '^(.*)$'
+    line: '\1 cgroup_memory=1 cgroup_enable=memory'
+    backrefs: yes
+  when: "'cgroup_memory=1' not in (cmdline_raw.content | b64decode) or 'cgroup_enable=memory' not in (cmdline_raw.content | b64decode)"
+  become: true
+  register: cmdline_cgroup
+
+- name: Mark reboot needed if cgroup flags changed
+  set_fact:
+    reboot_needed: true
+  when: cmdline_cgroup is not skipped and cmdline_cgroup.changed

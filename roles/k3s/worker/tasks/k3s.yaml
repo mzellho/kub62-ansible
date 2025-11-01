@@ -1,0 +1,7 @@
+- name: Join k3s cluster
+  shell: |
+    curl -sfL https://get.k3s.io | K3S_URL="{{ k3s_url }}" K3S_TOKEN="{{ k3s_token }}" sh -
+  args:
+    executable: /bin/bash
+    creates: /usr/local/bin/k3s
+  no_log: true

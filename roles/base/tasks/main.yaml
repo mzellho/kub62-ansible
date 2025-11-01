@@ -1,0 +1,9 @@
+- import_tasks: hostname.yaml
+- import_tasks: timezone.yaml
+- import_tasks: locale.yaml
+- import_tasks: packages.yaml
+- import_tasks: disable.yaml
+- import_tasks: clone.yaml
+  when: clone_destination | default('') in ['nvme', 'usb']
+- import_tasks: eeprom.yaml
+- import_tasks: reboot.yaml

@@ -1,0 +1,14 @@
+- name: Generate locale {{ locale }}
+  locale_gen:
+    name: "{{ locale }}"
+    state: present
+
+- name: Set locale variables
+  lineinfile:
+    path: /etc/default/locale
+    regexp: "^{{ item }}="
+    line: "{{ item }}={{ locale }}"
+    create: yes
+  loop:
+    - LANG
+    - LC_ALL

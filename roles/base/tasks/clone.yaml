@@ -1,0 +1,118 @@
+- name: Set clone parameters for {{ clone_destination }}
+  set_fact:
+    clone_params: "{{ clone_destination_map[clone_destination] }}"
+  vars:
+    clone_destination_map:
+      nvme:
+        device: nvme0n1
+        label: "{{ clone_label_prefix }}-nvme#"
+        boot_order: "0xf146"
+        dtparams:
+          - nvme
+      usb:
+        device: sda
+        label: "{{ clone_label_prefix }}-usb#"
+        boot_order: "0xf14"
+        dtparams: [ ]
+
+- name: Ensure required dtparams are present in config.txt
+  lineinfile:
+    path: /boot/firmware/config.txt
+    line: "dtparam={{ item }}"
+    state: present
+  loop: "{{ clone_params.dtparams }}"
+  register: dtparam_result
+  become: true
+
+- name: Mark reboot needed if dtparams changed
+  set_fact:
+    reboot_needed: true
+  when: dtparam_result.results | selectattr('changed') | list | length > 0
+
+- name: Read current EEPROM config
+  command: rpi-eeprom-config
+  become: true
+  register: eeprom_config
+  changed_when: "false"
+
+- name: Configure EEPROM boot order
+  shell: |
+    CONFIG=$(rpi-eeprom-config)
+    if echo "$CONFIG" | grep -q '^BOOT_ORDER='; then
+      echo "$CONFIG" | sed "s/^BOOT_ORDER=.*/BOOT_ORDER={{ clone_params.boot_order }}/"
+    else
+      echo "$CONFIG"; echo "BOOT_ORDER={{ clone_params.boot_order }}"
+    fi > /tmp/boot.conf
+    rpi-eeprom-config --apply /tmp/boot.conf
+    rm -f /tmp/boot.conf
+  become: true
+  when: "'BOOT_ORDER=' ~ clone_params.boot_order not in eeprom_config.stdout"
+
+- name: Prompt to insert clone target device
+  pause:
+    prompt: |
+      ⚠️ Please ensure the {{ clone_destination | upper }} device is inserted into {{ inventory_hostname }}.
+
+      Press ENTER to continue with cloning to {{ clone_params.device }}.
+  when: ansible_mounts | selectattr('device','search', clone_params.device) | list | length == 0
+
+- name: Download rpi-clone installer
+  get_url:
+    url: https://raw.githubusercontent.com/geerlingguy/rpi-clone/2.0.27/install
+    dest: /tmp/rpi-clone-install.sh
+    mode: '0755'
+  become: true
+  when: ansible_mounts | selectattr('device','search', clone_params.device) | list | length == 0
+
+- name: Run rpi-clone installer
+  shell: /tmp/rpi-clone-install.sh
+  args:
+    creates: /usr/local/sbin/rpi-clone
+  become: true
+  when: ansible_mounts | selectattr('device','search', clone_params.device) | list | length == 0
+
+- name: Clone system to {{ clone_destination }}
+  command: rpi-clone {{ clone_params.device }} -L {{ clone_params.label }} -U
+  become: true
+  register: rpi_clone_result
+  when: ansible_mounts | selectattr('device','search', clone_params.device) | list | length == 0
+
+- name: Reset reboot flag after manual power cycle
+  set_fact:
+    reboot_needed: false
+  when: rpi_clone_result is not skipped
+
+- name: Shut down device after clone
+  community.general.shutdown:
+    msg: "Shutting down after {{ clone_destination | upper }} clone"
+  become: true
+  when: rpi_clone_result is not skipped
+
+- name: Wait for {{ inventory_hostname }} to go offline
+  wait_for:
+    host: "{{ ansible_host }}"
+    port: 22
+    state: stopped
+    timeout: 120
+  delegate_to: localhost
+  become: false
+  when: rpi_clone_result is not skipped
+
+- name: Pause for manual intervention
+  pause:
+    prompt: |
+      {{ clone_destination | upper }} clone completed on {{ inventory_hostname }}.
+      The device has been powered off automatically.
+
+      ⚠️ BEFORE CONTINUING:
+        1. Remove the SD boot media
+        2. Power on the device
+
+      Press ENTER only after the device is powered on.
+  when: rpi_clone_result is not skipped
+
+- name: Wait for {{ inventory_hostname }} to come back online
+  wait_for_connection:
+    timeout: 300
+    delay: 10
+  when: rpi_clone_result is not skipped

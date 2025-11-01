@@ -1,0 +1,17 @@
+- name: Update apt cache
+  apt:
+    update_cache: yes
+  become: true
+
+- name: Upgrade all packages
+  apt:
+    upgrade: dist
+    autoremove: yes
+    autoclean: yes
+  register: apt_upgrade
+  become: true
+
+- name: Mark reboot needed if packages were upgraded
+  set_fact:
+    reboot_needed: true
+  when: apt_upgrade.changed

@@ -1,0 +1,33 @@
+- name: Add host keys to known_hosts
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Add each host key to localhost known_hosts
+      known_hosts:
+        name: '{{ ansible_host | default(inventory_hostname) }}'
+        state: present
+        key: "{{ lookup('pipe', 'ssh-keyscan -T 5 -H ' + (ansible_host | default(inventory_hostname))) }}"
+      delegate_to: localhost
+
+- name: Setup Control Plane
+  hosts: control_plane
+  become: true
+  roles:
+    - ../roles/base
+    - ../roles/k3s/base
+    - ../roles/k3s/control-plane
+
+- name: Setup Workers
+  hosts: worker
+  become: true
+  roles:
+    - ../roles/base
+    - ../roles/k3s/base
+    - ../roles/k3s/worker
+
+- name: Setup Kiosks
+  hosts: kiosk
+  become: true
+  roles:
+    - ../roles/base
+    - ../roles/kiosk
