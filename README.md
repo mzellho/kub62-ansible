@@ -56,13 +56,14 @@ your setup.
 
 ```bash
 # 🖥️ Control Plane Setup
-ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory/hosts.ini -l control_plane playbooks/kub62.yaml
+ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory/hosts.yaml -l control_plane playbooks/kub62.yaml --vault-password-file=.vaultpass -v
 
 # 🧑‍💻 Worker Node Setup
-ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory/hosts.ini -l worker playbooks/kub62.yaml
+ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory/hosts.yaml -l worker playbooks/kub62.yaml --vault-password-file=.vaultpass -v
 
 # 🖥️ Kiosk Node Setup
-ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory/hosts.ini -l kiosk playbooks/kub62.yaml
+ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory/hosts.yaml -l kiosk playbooks/kub62.yaml --vault-password-file=.vaultpass -v
+
 ```
 
 ## 🛠️ Base Role

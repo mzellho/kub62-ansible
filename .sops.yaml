@@ -1,0 +1,6 @@
+---
+creation_rules:
+  - path_regex: ^inventory/.*\.ya?ml$
+    key_groups:
+      - age:
+          - "age1q5j89v5snd8d2wplqztn79q69yfkhnx2fqtn32xef78yf8rukgksfnr5vk"
