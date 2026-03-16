@@ -1,33 +1,60 @@
 ---
 kub62:
+  hosts:
+    kub62-control-plane-1:
+      ansible_host: 192.168.10.11
+      clone_destination: nvme
+    kub62-control-plane-2:
+      ansible_host: 192.168.10.12
+      clone_destination: nvme
+    kub62-worker-1:
+      ansible_host: 192.168.10.21
+      clone_destination: nvme
+    kub62-worker-2:
+      ansible_host: 192.168.10.22
+      clone_destination: nvme
+    kub62-kiosk-1:
+      ansible_host: 192.168.10.31
+      bodgestr_device_usb_id: 1324:5678
+      clone_destination: usb
+      kiosk_urls: "https://example.com/1 https://example.com/2 https://example.com/3"
   vars:
-    ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/.ssh/id_d25519"
+    ansible_python_interpreter: /usr/bin/python3
+    ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/.ssh/id_ed25519"
     ansible_uid: 1000
     ansible_user: pi
     clone_label_prefix: kub62
-    locale: "de_AT.UTF-8"
-    timezone: "Europe/Vienna"
+    locale: de_AT.UTF-8
+    timezone: Europe/Vienna
+    k3s_server_common_flags: "--write-kubeconfig-mode=644 --disable traefik --disable servicelb --disable local-storage"
+    k3s_url: "https://{{ hostvars['kub62-control-plane-1']['ansible_host'] }}:6443"
+    k3s_token: 4711
   children:
     control_plane:
       hosts:
-        kub62-control-plane:
-          ansible_host: 192.168.10.10
-          clone_destination: nvme
+        kub62-control-plane-1:
+          k3s_exec_flags: "server {{ k3s_server_common_flags }} {{ k3s_server_cilium_flags }} --cluster-init"
+          sops_key: age.agekey
+          flux_bootstrap: true
+          flux_branch: main
+          flux_owner: me
+          flux_path: some/repo/path
+          flux_personal: true
+          flux_repository: my-gitops-flux
+          flux_pat: github_pat_abcde
+        kub62-control-plane-2:
+          k3s_exec_flags: "server {{ k3s_server_common_flags }} {{ k3s_server_cilium_flags }} --server {{ k3s_url }}"
+          flux_bootstrap: false
       vars:
-        k3s_exec_flags: "--disable traefik --disable servicelb --disable local-storage --flannel-backend none --disable-network-policy"
-    worker:
-      hosts:
-        kub62-worker-1:
-          ansible_host: 192.168.10.11
-          clone_destination: usb
-        kub62-worker-2:
-          ansible_host: 192.168.10.12
-          clone_destination: nvme
+        cilium: true
+        flux_enabled: true
+        k3s_server_cilium_flags: "{{ '--flannel-backend=none --disable-network-policy' if (cilium | default(false) | bool) else '' }}"
     kiosk:
       hosts:
         kub62-kiosk-1:
-          ansible_host: 192.168.10.13
-          clone_destination: usb
-          bodgestr_device_usb_id: "1234:5678"
+    worker:
+      hosts:
+        kub62-worker-1:
+        kub62-worker-2:
       vars:
-        kiosk_urls: "https://example.com/1 https://example.com/2"
+        k3s_exec_flags: "agent"

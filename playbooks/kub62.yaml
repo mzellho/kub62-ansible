@@ -1,27 +1,43 @@
+---
 - name: Add host keys to known_hosts
   hosts: all
   gather_facts: false
   tasks:
     - name: Add each host key to localhost known_hosts
-      known_hosts:
-        name: '{{ ansible_host | default(inventory_hostname) }}'
+      ansible.builtin.known_hosts:
+        name: "{{ ansible_host | default(inventory_hostname) }}"
         state: present
         key: "{{ lookup('pipe', 'ssh-keyscan -T 5 -H ' + (ansible_host | default(inventory_hostname))) }}"
       delegate_to: localhost
+      failed_when: false
+
+- name: Setup Base on all cluster nodes
+  hosts: all
+  become: true
+  roles:
+    - ../roles/base
 
 - name: Setup Control Plane
   hosts: control_plane
   become: true
+  serial: 1
   roles:
-    - ../roles/base
     - ../roles/k3s/base
     - ../roles/k3s/control-plane
+
+- name: Setup Control Plane Add-ons
+  hosts: control_plane
+  become: true
+  serial: 1
+  roles:
+    - ../roles/k3s/control-plane/addons/cilium
+    - ../roles/k3s/control-plane/addons/sops
+    - ../roles/k3s/control-plane/addons/flux
 
 - name: Setup Workers
   hosts: worker
   become: true
   roles:
-    - ../roles/base
     - ../roles/k3s/base
     - ../roles/k3s/worker
 
@@ -29,5 +45,4 @@
   hosts: kiosk
   become: true
   roles:
-    - ../roles/base
     - ../roles/kiosk

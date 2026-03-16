@@ -1,0 +1,7 @@
+---
+- name: Include flux install tasks
+  ansible.builtin.import_tasks: install.yaml
+  when: flux_enabled | default(false) | bool
+- name: Include flux bootstrap tasks
+  ansible.builtin.import_tasks: bootstrap.yaml
+  when: flux_enabled | default(false) | bool

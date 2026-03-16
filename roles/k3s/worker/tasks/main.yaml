@@ -1,2 +1,3 @@
-- import_tasks: token.yaml
-- import_tasks: k3s.yaml
+---
+- name: Include k3s worker tasks
+  ansible.builtin.import_tasks: k3s.yaml

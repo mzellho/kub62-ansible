@@ -1,5 +1,6 @@
+---
 - name: Disable unnecessary features in config.txt
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /boot/firmware/config.txt
     line: "{{ item }}"
     state: present
@@ -12,16 +13,18 @@
   become: true
 
 - name: Mark reboot needed if any feature was disabled
-  set_fact:
+  ansible.builtin.set_fact:
     reboot_needed: true
   when: disable_features.results | selectattr('changed') | list | length > 0
 
 - name: Disable unnecessary services
-  systemd:
+  ansible.builtin.systemd:
     name: "{{ item }}"
     state: stopped
     enabled: false
   loop:
     - ModemManager
   become: true
-  ignore_errors: true
+  register: disable_services_result
+  failed_when: false
+  changed_when: disable_services_result is changed

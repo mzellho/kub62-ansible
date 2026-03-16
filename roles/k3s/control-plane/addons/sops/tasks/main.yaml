@@ -1,0 +1,35 @@
+---
+- name: Ensure SOPS secret namespace exists
+  ansible.builtin.shell: |
+    set -o pipefail
+    kubectl create namespace {{ sops_namespace | default('flux-system') }} --dry-run=client -o yaml | kubectl apply -f -
+  args:
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  become: false
+  register: sops_namespace_apply
+  changed_when: "' created' in sops_namespace_apply.stdout or ' configured' in sops_namespace_apply.stdout"
+  when:
+    - sops_key is defined
+    - inventory_hostname == groups['control_plane'][0]
+
+- name: Create SOPS age secret
+  ansible.builtin.shell: |
+    set -o pipefail
+    kubectl create secret generic sops-age \
+      --namespace={{ sops_namespace | default('flux-system') }} \
+      --from-file=age.agekey=/dev/stdin \
+      --dry-run=client -o yaml | kubectl apply -f -
+  args:
+    executable: /bin/bash
+    stdin: "{{ lookup('file', playbook_dir + '/../' + sops_key) }}"
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  become: false
+  register: sops_secret_apply
+  changed_when: "' created' in sops_secret_apply.stdout or ' configured' in sops_secret_apply.stdout"
+  no_log: true
+  when:
+    - sops_key is defined
+    - inventory_hostname == groups['control_plane'][0]

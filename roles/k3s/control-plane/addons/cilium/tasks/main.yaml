@@ -1,0 +1,4 @@
+---
+- name: Include cilium install tasks
+  ansible.builtin.import_tasks: install.yaml
+  when: cilium | default(false) | bool

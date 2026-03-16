@@ -1,11 +1,12 @@
+---
 - name: Disable getty on tty1
-  systemd:
+  ansible.builtin.systemd:
     name: getty@tty1
-    enabled: no
+    enabled: false
     state: stopped
 
 - name: Install X11, Openbox, Chromium and kiosk dependencies
-  apt:
+  ansible.builtin.apt:
     name:
       - xserver-xorg
       - x11-xserver-utils
@@ -19,64 +20,69 @@
       - fonts-noto-color-emoji
       - xdotool
     state: present
-    install_recommends: no
-    update_cache: yes
+    install_recommends: false
+    update_cache: true
 
 - name: Create .xsession to start Openbox
-  copy:
+  ansible.builtin.copy:
     dest: "/home/{{ ansible_user }}/.xsession"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
-    mode: '0755'
+    mode: "0755"
     content: |
       exec openbox-session
 
 - name: Ensure Openbox config directory exists
-  file:
+  ansible.builtin.file:
     path: "/home/{{ ansible_user }}/.config/openbox"
     state: directory
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
-    mode: '0755'
+    mode: "0755"
 
 - name: Add kiosk user to input group
-  user:
+  ansible.builtin.user:
     name: "{{ ansible_user }}"
     groups: input
-    append: yes
+    append: true
 
 - name: Get dpkg architecture
-  command: dpkg --print-architecture
+  ansible.builtin.command: dpkg --print-architecture
   register: dpkg_arch
   changed_when: false
 
 - name: Get latest bodgestr release info from GitHub
-  uri:
+  ansible.builtin.uri:
     url: https://api.github.com/repos/mzellho/bodgestr/releases/latest
-    return_content: yes
-    headers:
-      Accept: application/vnd.github.v3+json
+    return_content: true
   register: bodgestr_release
 
 - name: Gather installed package facts
-  package_facts:
+  ansible.builtin.package_facts:
     manager: apt
 
 - name: Install latest bodgestr .deb from GitHub
-  apt:
-    deb: "{{ bodgestr_release.json.assets | selectattr('name', 'match', '.*_' + dpkg_arch.stdout + '_' + ansible_distribution_release + '\\.deb$') | map(attribute='browser_download_url') | first }}"
+  ansible.builtin.apt:
+    deb: >-
+      {{
+        bodgestr_release.json.assets
+        | map(attribute='browser_download_url')
+        | select('search',
+            'arm64' ~ '_' ~
+            ansible_distribution_release ~
+            '\.deb$'
+          )
+        | list
+        | first
+      }}
     state: present
-  when: >
-    'bodgestr' not in ansible_facts.packages
-    or ansible_facts.packages['bodgestr'][0].version != bodgestr_release.json.tag_name | regex_replace('^v', '')
-  notify: Restart bodgestr
 
 - name: Deploy bodgestr gestures config
-  copy:
+  ansible.builtin.copy:
     dest: /etc/bodgestr/gestures.toml
     owner: root
     group: root
-    mode: '0644'
+    mode: "0644"
     content: |
       [global]
       log_level = "info"
@@ -120,23 +126,22 @@
       [device.kiosk]
       device_usb_id = "{{ bodgestr_device_usb_id }}"
       enabled = true
-  notify: Restart bodgestr
 
 - name: Create bodgestr systemd override directory
-  file:
+  ansible.builtin.file:
     path: /etc/systemd/system/bodgestr.service.d
     state: directory
     owner: root
     group: root
-    mode: '0755'
+    mode: "0755"
   become: true
 
 - name: Override bodgestr service for kiosk setup
-  copy:
+  ansible.builtin.copy:
     dest: /etc/systemd/system/bodgestr.service.d/override.conf
     owner: root
     group: root
-    mode: '0644'
+    mode: "0644"
     content: |
       [Unit]
       After=
@@ -158,21 +163,20 @@
       WantedBy=
       WantedBy=multi-user.target
   become: true
-  notify: Restart bodgestr
 
 - name: Enable and start bodgestr service
-  systemd:
+  ansible.builtin.systemd:
     name: bodgestr.service
-    daemon_reload: yes
-    enabled: yes
+    daemon_reload: true
+    enabled: true
     state: started
 
 - name: Configure Openbox autostart for Chromium kiosk
-  copy:
+  ansible.builtin.copy:
     dest: "/home/{{ ansible_user }}/.config/openbox/autostart"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
-    mode: '0644'
+    mode: "0644"
     content: |
       # Disable screen blanking
       xset s off
@@ -192,21 +196,24 @@
         --overscroll-history-navigation=0 \
         --touch-events=enabled \
         --hide-scrollbars
+  notify: Restart kiosk
 
 - name: Ensure .Xauthority exists
-  file:
+  ansible.builtin.file:
     path: "/home/{{ ansible_user }}/.Xauthority"
     state: touch
+    access_time: preserve
+    modification_time: preserve
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
-    mode: '0600'
+    mode: "0600"
 
 - name: Install kiosk systemd service
-  copy:
+  ansible.builtin.copy:
     dest: /etc/systemd/system/kiosk.service
     owner: root
     group: root
-    mode: '0644'
+    mode: "0644"
     content: |
       [Unit]
       Description=Kiosk Browser
@@ -236,17 +243,11 @@
 
       [Install]
       WantedBy=multi-user.target
+  notify: Restart kiosk
 
-- name: Reload systemd daemon
-  systemd:
-    daemon_reload: yes
-
-- name: Enable kiosk service
-  systemd:
+- name: Enable and start kiosk service
+  ansible.builtin.systemd:
     name: kiosk.service
-    enabled: yes
-
-- name: Start kiosk service
-  systemd:
-    name: kiosk.service
-    state: restarted
+    daemon_reload: true
+    enabled: true
+    state: started

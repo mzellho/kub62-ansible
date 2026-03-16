@@ -1,9 +1,18 @@
-- import_tasks: hostname.yaml
-- import_tasks: timezone.yaml
-- import_tasks: locale.yaml
-- import_tasks: packages.yaml
-- import_tasks: disable.yaml
-- import_tasks: clone.yaml
+---
+- name: Include clone tasks
+  ansible.builtin.import_tasks: clone.yaml
   when: clone_destination | default('') in ['nvme', 'usb']
-- import_tasks: eeprom.yaml
-- import_tasks: reboot.yaml
+- name: Include hostname tasks
+  ansible.builtin.import_tasks: hostname.yaml
+- name: Include timezone tasks
+  ansible.builtin.import_tasks: timezone.yaml
+- name: Include locale tasks
+  ansible.builtin.import_tasks: locale.yaml
+- name: Include disable tasks
+  ansible.builtin.import_tasks: disable.yaml
+- name: Include package tasks
+  ansible.builtin.import_tasks: packages.yaml
+- name: Include EEPROM tasks
+  ansible.builtin.import_tasks: eeprom.yaml
+- name: Include reboot tasks
+  ansible.builtin.import_tasks: reboot.yaml

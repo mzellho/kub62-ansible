@@ -1,8 +1,14 @@
+---
 - name: Reboot system if any change requires it
-  reboot:
-    msg: 'Reboot after setup of {{ inventory_hostname }}'
-  when: reboot_needed | default(false)
+  ansible.builtin.reboot:
+    msg: "Reboot after setup of {{ inventory_hostname }}"
+    connect_timeout: 10
+    reboot_timeout: 1200
+    post_reboot_delay: 10
+  register: reboot_result
+  when: reboot_needed | default(false) | bool
 
 - name: Reset reboot flag
-  set_fact:
+  ansible.builtin.set_fact:
     reboot_needed: false
+  when: reboot_result is not skipped

@@ -1,0 +1,20 @@
+---
+- name: Bootstrap flux with GitHub
+  ansible.builtin.shell: |
+    flux bootstrap github \
+      --owner={{ flux_owner }} \
+      --repository={{ flux_repository }} \
+      --branch={{ flux_branch }} \
+      --path={{ flux_path }} \
+      --personal={{ flux_personal | lower }}
+  args:
+    executable: /bin/bash
+  environment:
+    GITHUB_TOKEN: "{{ flux_pat }}"
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  register: flux_bootstrap_result
+  changed_when: "'already bootstrapped' not in (flux_bootstrap_result.stdout | lower)"
+  when:
+    - flux_bootstrap | default(false) | bool
+    - inventory_hostname == groups['control_plane'][0]
+  become: false

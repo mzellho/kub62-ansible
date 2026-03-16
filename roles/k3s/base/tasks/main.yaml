@@ -1,3 +1,9 @@
-- import_tasks: packages.yaml
-- import_tasks: cmdline.yaml
-- import_tasks: reboot.yaml
+---
+- name: Include k3s package tasks
+  ansible.builtin.import_tasks: packages.yaml
+- name: Include k3s cmdline tasks
+  ansible.builtin.import_tasks: cmdline.yaml
+- name: Include shared reboot tasks
+  ansible.builtin.import_tasks: reboot.yaml
+- name: Include kub62 helper script tasks
+  ansible.builtin.import_tasks: kub62-node.yaml

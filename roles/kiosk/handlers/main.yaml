@@ -1,5 +1,6 @@
-- name: Restart bodgestr
-  systemd:
-    name: bodgestr.service
-    daemon_reload: yes
+---
+- name: Restart kiosk
+  ansible.builtin.systemd:
+    name: kiosk.service
+    daemon_reload: true
     state: restarted

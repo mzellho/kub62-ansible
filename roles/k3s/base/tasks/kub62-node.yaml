@@ -1,0 +1,8 @@
+---
+- name: Deploy kub62 node helper script
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../kub62-node.sh"
+    dest: "/home/{{ ansible_user }}/kub62-node.sh"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"

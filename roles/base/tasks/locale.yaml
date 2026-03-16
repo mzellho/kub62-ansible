@@ -1,14 +1,18 @@
+---
 - name: Generate locale {{ locale }}
-  locale_gen:
+  community.general.locale_gen:
     name: "{{ locale }}"
     state: present
 
 - name: Set locale variables
-  lineinfile:
+  ansible.builtin.lineinfile:
     path: /etc/default/locale
     regexp: "^{{ item }}="
     line: "{{ item }}={{ locale }}"
-    create: yes
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
   loop:
     - LANG
     - LC_ALL

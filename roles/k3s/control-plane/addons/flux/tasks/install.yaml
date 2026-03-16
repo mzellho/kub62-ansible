@@ -1,0 +1,23 @@
+---
+- name: Check if flux CLI is already installed
+  ansible.builtin.command: which flux
+  register: flux_check
+  changed_when: false
+  failed_when: false
+
+- name: Install flux CLI # noqa: command-instead-of-module
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl -s https://fluxcd.io/install.sh | sudo bash
+  args:
+    executable: /bin/bash
+  changed_when: true
+  when: flux_check.rc != 0
+  become: true
+
+- name: Add flux bash completion
+  ansible.builtin.shell: flux completion bash > /etc/bash_completion.d/flux
+  args:
+    executable: /bin/bash
+    creates: /etc/bash_completion.d/flux
+  become: true

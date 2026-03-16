@@ -1,7 +1,9 @@
+---
 - name: Install Longhorn dependencies
-  apt:
+  ansible.builtin.apt:
     name:
       - open-iscsi
       - smartmontools
+      - cryptsetup
     state: present
   become: true

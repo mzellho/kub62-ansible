@@ -1,4 +1,4 @@
 .idea
-artifacts
 inventory/hosts.yaml
 .vaultpass
+age.agekey
