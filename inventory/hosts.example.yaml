@@ -43,6 +43,7 @@ kub62:
     k3s_oidc_prefix: "oidc:"
     k3s_node_label_flags: >-
       {{ (k3s_node_labels | default([])) | map('regex_replace', '^(.+)$', '--node-label \1') | join(' ') }}
+    k3s_version: v1.36.5+k3s1
     # API virtual IP served by kube-vip.
     k3s_vip: 192.168.10.5
     kube_vip_version: v1.2.4

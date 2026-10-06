@@ -2,7 +2,7 @@
 - name: Install control plane # noqa: command-instead-of-module
   ansible.builtin.shell: |
     set -o pipefail
-    curl -sfL https://get.k3s.io | K3S_TOKEN="{{ k3s_token }}" INSTALL_K3S_EXEC="{{ k3s_exec_flags | trim }}" sh -
+    curl -sfL https://get.k3s.io | K3S_TOKEN="{{ k3s_token }}" INSTALL_K3S_VERSION="{{ k3s_version }}" INSTALL_K3S_EXEC="{{ k3s_exec_flags | trim }}" sh -
   args:
     executable: /bin/bash
     creates: /usr/local/bin/k3s

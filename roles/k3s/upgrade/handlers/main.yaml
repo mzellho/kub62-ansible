@@ -1,0 +1,5 @@
+---
+- name: Restart upgraded k3s
+  ansible.builtin.systemd:
+    name: "{{ 'k3s' if inventory_hostname in (groups['control_plane'] | default([])) else 'k3s-agent' }}"
+    state: restarted

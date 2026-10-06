@@ -64,3 +64,19 @@
   tags: [kiosk]
   roles:
     - ../roles/kiosk
+
+- name: Upgrade k3s on the control plane
+  hosts: control_plane
+  become: true
+  serial: 1
+  tags: [never, upgrade]
+  roles:
+    - ../roles/k3s/upgrade
+
+- name: Upgrade k3s on the workers
+  hosts: worker
+  become: true
+  serial: 1
+  tags: [never, upgrade]
+  roles:
+    - ../roles/k3s/upgrade
