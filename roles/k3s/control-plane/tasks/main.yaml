@@ -1,6 +1,9 @@
 ---
 - name: Configure control plane service
   ansible.builtin.import_tasks: k3s.yaml
+- name: Trust Authentik as an OIDC provider
+  ansible.builtin.import_tasks: oidc.yaml
+  tags: [oidc]
 - name: Install control plane packages
   ansible.builtin.import_tasks: packages.yaml
 - name: Configure shell autocompletion

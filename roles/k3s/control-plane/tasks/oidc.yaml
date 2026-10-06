@@ -1,0 +1,61 @@
+---
+# Lets the API server accept Authentik tokens, which Headlamp passes through.
+
+- name: Check whether k3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+
+- name: Ensure k3s configuration directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /etc/rancher/k3s
+    - /etc/rancher/k3s/config.yaml.d
+  when: k3s_oidc_issuer_url | default('') | length > 0
+
+- name: Deploy authentication configuration for the API server
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - roles/k3s/control-plane/tasks/oidc.yaml
+      apiVersion: apiserver.config.k8s.io/v1
+      kind: AuthenticationConfiguration
+      # k3s stops disabling anonymous auth once an authentication config exists.
+      anonymous:
+        enabled: false
+      jwt:
+        - issuer:
+            # Must match the iss claim exactly, trailing slash included.
+            url: {{ k3s_oidc_issuer_url }}
+            audiences:
+              - {{ k3s_oidc_client_id }}
+          claimMappings:
+            username:
+              claim: {{ k3s_oidc_username_claim }}
+              prefix: "{{ k3s_oidc_prefix }}"
+            # Keeps Authentik groups apart from system: groups.
+            groups:
+              claim: {{ k3s_oidc_groups_claim }}
+              prefix: "{{ k3s_oidc_prefix }}"
+    dest: /etc/rancher/k3s/authentication-config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  when: k3s_oidc_issuer_url | default('') | length > 0
+  notify: Restart k3s
+
+- name: Point the API server at the authentication configuration
+  ansible.builtin.copy:
+    content: |
+      ---
+      # Managed by Ansible - roles/k3s/control-plane/tasks/oidc.yaml
+      kube-apiserver-arg:
+        - "authentication-config=/etc/rancher/k3s/authentication-config.yaml"
+    dest: /etc/rancher/k3s/config.yaml.d/20-oidc.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  when: k3s_oidc_issuer_url | default('') | length > 0
+  notify: Restart k3s
