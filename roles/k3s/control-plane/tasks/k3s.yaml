@@ -1,4 +1,14 @@
 ---
+- name: Check for an existing k3s agent
+  ansible.builtin.stat:
+    path: /etc/systemd/system/k3s-agent.service
+  register: k3s_agent_unit
+
+- name: Refuse to reuse an agent as server
+  ansible.builtin.fail:
+    msg: "{{ inventory_hostname }} runs k3s-agent; run k3s-agent-uninstall.sh before it joins as server."
+  when: k3s_agent_unit.stat.exists
+
 - name: Install control plane # noqa: command-instead-of-module
   ansible.builtin.shell: |
     set -o pipefail

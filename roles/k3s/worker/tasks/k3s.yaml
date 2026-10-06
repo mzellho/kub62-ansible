@@ -1,4 +1,14 @@
 ---
+- name: Check for an existing k3s server
+  ansible.builtin.stat:
+    path: /etc/systemd/system/k3s.service
+  register: k3s_server_unit
+
+- name: Refuse to reuse a server as agent
+  ansible.builtin.fail:
+    msg: "{{ inventory_hostname }} runs k3s as server; run k3s-uninstall.sh before it joins as agent."
+  when: k3s_server_unit.stat.exists
+
 - name: Wait for cluster API availability
   ansible.builtin.uri:
     url: "{{ k3s_url }}"
