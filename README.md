@@ -162,7 +162,36 @@ ansible-playbook playbooks/kub62.yaml --start-at-task "Install Flux CLI" -v
 | `sops`           | SOPS age secret                                        |
 | `flux`           | Flux CLI + bootstrap                                   |
 | `worker`         | Worker node k3s join                                   |
+| `oidc`           | API server OIDC trust                                  |
+| `kube-vip`       | API virtual IP                                         |
+| `labels`         | Node labels from the inventory                         |
 | `kiosk`          | Kiosk display setup                                    |
+| `upgrade`        | k3s binary upgrade to `k3s_version` (`never`, opt-in)  |
+
+#### Rolling Maintenance
+
+The base play runs one node at a time. When a node needs a reboot it is drained first and uncordoned once it is
+`Ready` again.
+
+```bash
+# 📦 Update packages on every node, rebooting only where needed
+ansible-playbook --tags base playbooks/kub62.yaml
+
+# 🔁 Same, but reboot every node
+ansible-playbook --tags base -e base_force_reboot=true playbooks/kub62.yaml
+
+# ⬆️ Upgrade k3s to k3s_version, control plane first
+ansible-playbook --tags upgrade playbooks/kub62.yaml
+```
+
+#### Bootstrapping From Scratch
+
+CoreDNS forwards to `k3s_pod_resolver` and the API server trusts `k3s_oidc_issuer_url`, but both services are only
+deployed by Flux. On an empty cluster, run twice:
+
+1. Leave `k3s_pod_resolver` and `k3s_oidc_issuer_url` empty and run the full playbook. Flux brings up the resolver
+   and the identity provider.
+2. Set both variables and run `--tags k3s` again.
 
 > 💡 **Tip:** If you use SOPS/age, make sure `sops_key` points to an existing local age private key before running the
 > playbook.
