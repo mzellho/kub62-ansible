@@ -1,4 +1,15 @@
 ---
+- name: Check for an existing Flux installation
+  ansible.builtin.command:
+    argv: [/usr/local/bin/k3s, kubectl, get, namespace, flux-system]
+  register: k3s_flux_namespace
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when:
+    - flux_bootstrap | default(false) | bool
+    - inventory_hostname == groups['control_plane'][0]
+
 - name: Bootstrap GitOps with GitHub
   ansible.builtin.shell: |
     flux bootstrap github \
@@ -18,4 +29,5 @@
   when:
     - flux_bootstrap | default(false) | bool
     - inventory_hostname == groups['control_plane'][0]
+    - k3s_flux_namespace.rc != 0
   become: false
