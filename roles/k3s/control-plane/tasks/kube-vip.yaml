@@ -1,0 +1,160 @@
+---
+# API virtual IP only; LoadBalancer services stay with MetalLB.
+- name: Check whether k3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+
+- name: Ensure k3s directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /etc/rancher/k3s/config.yaml.d, mode: "0755" }
+    - { path: /var/lib/rancher/k3s/server/manifests, mode: "0700" }
+
+- name: Add the virtual IP to the API server certificate
+  ansible.builtin.copy:
+    content: |
+      ---
+      # Managed by Ansible - roles/k3s/control-plane/tasks/kube-vip.yaml
+      tls-san:
+        - "{{ k3s_vip }}"
+    dest: /etc/rancher/k3s/config.yaml.d/30-tls-san.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart k3s
+
+- name: Deploy kube-vip
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - roles/k3s/control-plane/tasks/kube-vip.yaml
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: kube-vip
+        namespace: kube-system
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: system:kube-vip-role
+      rules:
+        - apiGroups: [""]
+          resources: ["services/status"]
+          verbs: ["update"]
+        - apiGroups: [""]
+          resources: ["services", "endpoints"]
+          verbs: ["list", "get", "watch", "update"]
+        - apiGroups: [""]
+          resources: ["nodes"]
+          verbs: ["list", "get", "watch", "update", "patch"]
+        - apiGroups: ["coordination.k8s.io"]
+          resources: ["leases"]
+          verbs: ["list", "get", "watch", "update", "create"]
+        - apiGroups: ["discovery.k8s.io"]
+          resources: ["endpointslices"]
+          verbs: ["list", "get", "watch", "update"]
+        - apiGroups: [""]
+          resources: ["pods"]
+          verbs: ["list"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: system:kube-vip-binding
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: system:kube-vip-role
+      subjects:
+        - kind: ServiceAccount
+          name: kube-vip
+          namespace: kube-system
+      ---
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: kube-vip-ds
+        namespace: kube-system
+        labels:
+          app.kubernetes.io/name: kube-vip-ds
+          app.kubernetes.io/version: {{ kube_vip_version }}
+      spec:
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: kube-vip-ds
+        template:
+          metadata:
+            labels:
+              app.kubernetes.io/name: kube-vip-ds
+              app.kubernetes.io/version: {{ kube_vip_version }}
+          spec:
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: node-role.kubernetes.io/control-plane
+                          operator: Exists
+            containers:
+              - name: kube-vip
+                image: ghcr.io/kube-vip/kube-vip:{{ kube_vip_version }}
+                args: ["manager"]
+                env:
+                  - name: vip_arp
+                    value: "true"
+                  - name: port
+                    value: "6443"
+                  - name: vip_nodename
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: spec.nodeName
+                  - name: vip_interface
+                    value: {{ kube_vip_interface }}
+                  - name: vip_subnet
+                    value: "32"
+                  - name: cp_enable
+                    value: "true"
+                  - name: cp_namespace
+                    value: kube-system
+                  - name: svc_enable
+                    value: "false"
+                  - name: vip_leaderelection
+                    value: "true"
+                  - name: vip_leasename
+                    value: plndr-cp-lock
+                  - name: vip_leaseduration
+                    value: "15"
+                  - name: vip_renewdeadline
+                    value: "10"
+                  - name: vip_retryperiod
+                    value: "2"
+                  - name: address
+                    value: "{{ k3s_vip }}"
+                  - name: prometheus_server
+                    value: ":2112"
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 32Mi
+                  limits:
+                    memory: 128Mi
+                securityContext:
+                  capabilities:
+                    add: ["NET_ADMIN", "NET_RAW"]
+                    drop: ["ALL"]
+            hostNetwork: true
+            priorityClassName: system-node-critical
+            serviceAccountName: kube-vip
+            tolerations:
+              - effect: NoSchedule
+                operator: Exists
+              - effect: NoExecute
+                operator: Exists
+    dest: /var/lib/rancher/k3s/server/manifests/kube-vip.yaml
+    owner: root
+    group: root
+    mode: "0600"

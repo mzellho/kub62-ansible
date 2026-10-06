@@ -4,6 +4,10 @@
 - name: Trust Authentik as an OIDC provider
   ansible.builtin.import_tasks: oidc.yaml
   tags: [oidc]
+- name: Serve the API on a virtual IP
+  ansible.builtin.import_tasks: kube-vip.yaml
+  when: k3s_vip | default('') | length > 0
+  tags: [kube-vip]
 - name: Install control plane packages
   ansible.builtin.import_tasks: packages.yaml
 - name: Configure shell autocompletion
