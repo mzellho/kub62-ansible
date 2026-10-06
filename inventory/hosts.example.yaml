@@ -27,6 +27,7 @@ kub62:
     locale: de_AT.UTF-8
     timezone: Europe/Vienna
     k3s_server_common_flags: "--write-kubeconfig-mode=644 --disable traefik --disable servicelb --disable local-storage"
+    k3s_pod_resolver: 192.168.30.100
     k3s_url: "https://{{ hostvars['kub62-control-plane-1']['ansible_host'] }}:6443"
     k3s_token: 4711
   children:

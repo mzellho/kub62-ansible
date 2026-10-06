@@ -1,0 +1,21 @@
+---
+# Skipped on fresh installs: k3s reads the config on its first start.
+- name: Restart k3s
+  ansible.builtin.systemd:
+    name: "{{ 'k3s' if inventory_hostname in (groups['control_plane'] | default([])) else 'k3s-agent' }}"
+    state: restarted
+  when: k3s_installed.stat.exists | default(false)
+  # Handlers inherit play tags; without always, --tags dns would skip the restart.
+  tags: always
+
+- name: Restart CoreDNS
+  # Running pods keep their resolv.conf snapshot until restarted.
+  ansible.builtin.command:
+    cmd: kubectl --namespace kube-system rollout restart deployment/coredns
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  delegate_to: "{{ groups['control_plane'] | first }}"
+  run_once: true
+  changed_when: true
+  when: k3s_installed.stat.exists | default(false)
+  tags: always

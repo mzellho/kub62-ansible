@@ -1,0 +1,48 @@
+---
+# Pods resolve via Pi-hole, the host keeps public resolvers so containerd can
+# still pull the Pi-hole image while Pi-hole is down.
+- name: Check whether k3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+
+- name: Ensure k3s configuration directories exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /etc/rancher/k3s
+    - /etc/rancher/k3s/config.yaml.d
+  when: k3s_pod_resolver | default('') | length > 0
+
+- name: Deploy resolver for pods and CoreDNS
+  # Single nameserver: CoreDNS picks randomly and would bypass the filter.
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - roles/k3s/base/tasks/resolv-conf.yaml
+      nameserver {{ k3s_pod_resolver }}
+    dest: /etc/rancher/k3s/resolv-pods.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: k3s_pod_resolver | default('') | length > 0
+  notify:
+    - Restart k3s
+    - Restart CoreDNS
+
+- name: Point kubelet at the pod resolver
+  # Drop-ins apply on every start, unlike INSTALL_K3S_EXEC behind creates:.
+  ansible.builtin.copy:
+    content: |
+      ---
+      # Managed by Ansible - roles/k3s/base/tasks/resolv-conf.yaml
+      resolv-conf: /etc/rancher/k3s/resolv-pods.conf
+    dest: /etc/rancher/k3s/config.yaml.d/10-resolv-conf.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  when: k3s_pod_resolver | default('') | length > 0
+  notify:
+    - Restart k3s
+    - Restart CoreDNS
