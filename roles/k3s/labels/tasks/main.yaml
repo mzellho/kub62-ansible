@@ -1,0 +1,29 @@
+---
+# --node-label only applies at registration, so labels are set via the API.
+# Labels dropped from the inventory stay on the node.
+- name: Wait for node objects to exist
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - get
+      - node
+      - "{{ item }}"
+      - --no-headers
+  loop: "{{ groups['kub62'] }}"
+  run_once: true
+  register: k3s_node_present
+  until: k3s_node_present.rc == 0
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: Reconcile node labels from inventory
+  ansible.builtin.command: >-
+    /usr/local/bin/k3s kubectl label node {{ item }} --overwrite
+    {{ (hostvars[item].k3s_node_labels | default([])) | join(' ') }}
+  loop: "{{ groups['kub62'] }}"
+  run_once: true
+  when: (hostvars[item].k3s_node_labels | default([])) | length > 0
+  register: k3s_node_label
+  changed_when: k3s_node_label.stdout is defined and 'not labeled' not in k3s_node_label.stdout

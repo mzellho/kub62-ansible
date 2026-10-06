@@ -10,14 +10,21 @@ kub62:
     kub62-worker-1:
       ansible_host: 192.168.10.21
       clone_destination: nvme
+      k3s_node_labels:
+        - kub62.local/memory=8g
+        - kub62.local/otbr=true
     kub62-worker-2:
       ansible_host: 192.168.10.22
       clone_destination: nvme
+      k3s_node_labels:
+        - kub62.local/memory=4g
     kub62-kiosk-1:
       ansible_host: 192.168.10.31
       bodgestr_device_usb_id: 1324:5678
       clone_destination: usb
       kiosk_urls: "https://example.com/1 https://example.com/2 https://example.com/3"
+      k3s_node_labels:
+        - kub62.local/kiosk=true
   vars:
     ansible_python_interpreter: /usr/bin/python3
     ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/.ssh/id_ed25519"
@@ -34,13 +41,15 @@ kub62:
     k3s_oidc_username_claim: preferred_username
     k3s_oidc_groups_claim: groups
     k3s_oidc_prefix: "oidc:"
+    k3s_node_label_flags: >-
+      {{ (k3s_node_labels | default([])) | map('regex_replace', '^(.+)$', '--node-label \1') | join(' ') }}
     k3s_url: "https://{{ hostvars['kub62-control-plane-1']['ansible_host'] }}:6443"
     k3s_token: 4711
   children:
     control_plane:
       hosts:
         kub62-control-plane-1:
-          k3s_exec_flags: "server {{ k3s_server_common_flags }} {{ k3s_server_cilium_flags }} --cluster-init"
+          k3s_exec_flags: "server {{ k3s_server_common_flags }} {{ k3s_server_cilium_flags }} {{ k3s_node_label_flags }} --cluster-init"
           sops_key: age.agekey
           flux_bootstrap: true
           flux_branch: main
@@ -50,7 +59,7 @@ kub62:
           flux_repository: my-gitops-flux
           flux_pat: github_pat_abcde
         kub62-control-plane-2:
-          k3s_exec_flags: "server {{ k3s_server_common_flags }} {{ k3s_server_cilium_flags }} --server {{ k3s_url }}"
+          k3s_exec_flags: "server {{ k3s_server_common_flags }} {{ k3s_server_cilium_flags }} {{ k3s_node_label_flags }} --server {{ k3s_url }}"
           flux_bootstrap: false
       vars:
         cilium: true
@@ -64,4 +73,4 @@ kub62:
         kub62-worker-1:
         kub62-worker-2:
       vars:
-        k3s_exec_flags: "agent"
+        k3s_exec_flags: "agent {{ k3s_node_label_flags }}"

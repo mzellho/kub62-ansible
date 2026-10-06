@@ -51,6 +51,13 @@
     - ../roles/k3s/base
     - ../roles/k3s/worker
 
+- name: Reconcile Kubernetes node labels
+  hosts: control_plane
+  become: true
+  tags: [k3s, labels]
+  roles:
+    - ../roles/k3s/labels
+
 - name: Configure kiosk nodes
   hosts: kiosk
   become: true
