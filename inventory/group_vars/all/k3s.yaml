@@ -16,3 +16,19 @@ k3s_server_join_flag: "{{ '--cluster-init' if inventory_hostname == k3s_first_se
 k3s_server_flags: "server {{ k3s_server_common_flags }} {{ k3s_server_cilium_flags }} {{ k3s_server_join_flag }}"
 k3s_exec_flags: >-
   {{ ((k3s_server_flags if inventory_hostname in groups['control_plane'] else 'agent') ~ ' ' ~ k3s_node_label_flags) | split | join(' ') }}
+# Servers run the API server and controllers inside the k3s process.
+k3s_kubelet_config:
+  apiVersion: kubelet.config.k8s.io/v1beta1
+  kind: KubeletConfiguration
+  kubeReserved:
+    cpu: "{{ '500m' if inventory_hostname in groups['control_plane'] else '250m' }}"
+    memory: "{{ '1536Mi' if inventory_hostname in groups['control_plane'] else '512Mi' }}"
+  systemReserved:
+    cpu: 250m
+    memory: 512Mi
+  # Replaces k3s' defaults, so the disk thresholds are repeated.
+  evictionHard:
+    memory.available: 300Mi
+    nodefs.available: 5%
+    imagefs.available: 5%
+  imageMaximumGCAge: 336h

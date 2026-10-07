@@ -4,6 +4,9 @@
 - name: Separate pod resolver from host resolver
   ansible.builtin.import_tasks: resolv-conf.yaml
   tags: [dns]
+- name: Reserve node resources for k3s
+  ansible.builtin.import_tasks: kubelet.yaml
+  tags: [kubelet]
 - name: Configure kernel cgroup settings
   ansible.builtin.import_tasks: cmdline.yaml
 - name: Apply pending reboot

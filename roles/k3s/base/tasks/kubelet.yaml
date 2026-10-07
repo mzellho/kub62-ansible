@@ -1,0 +1,23 @@
+---
+- name: Check whether k3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+
+- name: Ensure kubelet drop-in directory exists
+  ansible.builtin.file:
+    path: /var/lib/rancher/k3s/agent/etc/kubelet.conf.d
+    state: directory
+    mode: "0700"
+
+- name: Reserve resources for k3s and the OS
+  # Later files in the config dir override k3s' own 00-k3s-defaults.conf.
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - roles/k3s/base/tasks/kubelet.yaml
+      {{ k3s_kubelet_config | to_nice_yaml(indent=2) }}
+    dest: /var/lib/rancher/k3s/agent/etc/kubelet.conf.d/50-kub62.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart k3s
