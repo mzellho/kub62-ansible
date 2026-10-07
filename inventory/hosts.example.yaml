@@ -1,24 +1,24 @@
 ---
 kub62:
   hosts:
-    kub62-control-plane-1:
+    node-1:
       ansible_host: 192.168.10.11
       clone_destination: nvme
-    kub62-control-plane-2:
+    node-2:
       ansible_host: 192.168.10.12
       clone_destination: nvme
-    kub62-worker-1:
+    node-3:
       ansible_host: 192.168.10.21
       clone_destination: nvme
       k3s_node_labels:
         - kub62.local/memory=8g
         - kub62.local/otbr=true
-    kub62-worker-2:
+    node-4:
       ansible_host: 192.168.10.22
       clone_destination: nvme
       k3s_node_labels:
         - kub62.local/memory=4g
-    kub62-kiosk-1:
+    node-5:
       ansible_host: 192.168.10.31
       bodgestr_device_usb_id: 1324:5678
       clone_destination: usb
@@ -48,7 +48,7 @@ kub62:
   children:
     control_plane:
       hosts:
-        kub62-control-plane-1:
+        node-1:
           sops_key: age.agekey
           flux_bootstrap: true
           flux_branch: main
@@ -57,15 +57,16 @@ kub62:
           flux_personal: true
           flux_repository: my-gitops-flux
           flux_pat: github_pat_abcde
-        kub62-control-plane-2:
+        node-2:
+          flux_bootstrap: false
+        node-3:
           flux_bootstrap: false
       vars:
         cilium: true
         flux_enabled: true
     kiosk:
       hosts:
-        kub62-kiosk-1:
+        node-5:
     worker:
       hosts:
-        kub62-worker-1:
-        kub62-worker-2:
+        node-4:

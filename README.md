@@ -143,7 +143,7 @@ ansible-playbook -l kiosk --tags kiosk playbooks/kub62.yaml -v
 ansible-playbook playbooks/kub62.yaml --check --diff -v
 
 # 🎯 Run only a specific tag on a single host
-ansible-playbook -l kub62-worker-1 --tags base playbooks/kub62.yaml -v
+ansible-playbook -l node-4 --tags base playbooks/kub62.yaml -v
 
 # ⏩ Resume at a specific task
 ansible-playbook playbooks/kub62.yaml --start-at-task "Install Flux CLI" -v
