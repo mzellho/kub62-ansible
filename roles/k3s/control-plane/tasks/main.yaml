@@ -1,6 +1,12 @@
 ---
 - name: Configure control plane service
   ansible.builtin.import_tasks: k3s.yaml
+- name: Move the datastore to embedded etcd
+  ansible.builtin.import_tasks: etcd.yaml
+  when:
+    - k3s_embedded_etcd | bool
+    - inventory_hostname == k3s_init_server
+  tags: [etcd]
 - name: Trust Authentik as an OIDC provider
   ansible.builtin.import_tasks: oidc.yaml
   tags: [oidc]

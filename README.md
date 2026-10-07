@@ -167,6 +167,7 @@ ansible-playbook playbooks/kub62.yaml --start-at-task "Install Flux CLI" -v
 | `labels`         | Node labels from the inventory                         |
 | `kiosk`          | Kiosk display setup                                    |
 | `upgrade`        | k3s binary upgrade to `k3s_version` (`never`, opt-in)  |
+| `etcd`           | Move the init server from SQLite to embedded etcd      |
 
 #### Rolling Maintenance
 
@@ -183,6 +184,19 @@ ansible-playbook --tags base -e base_force_reboot=true playbooks/kub62.yaml
 # ⬆️ Upgrade k3s to k3s_version, control plane first
 ansible-playbook --tags upgrade playbooks/kub62.yaml
 ```
+
+#### Growing to Several Servers
+
+The first `control_plane` host initialises the cluster (`k3s_init_server`), every other one joins it. A cluster
+that started on SQLite needs embedded etcd before a second server can join:
+
+```bash
+# 💾 Back up state.db and switch the init server to embedded etcd
+ansible-playbook -l control_plane --tags etcd -e k3s_embedded_etcd=true playbooks/kub62.yaml
+```
+
+Then set `k3s_embedded_etcd: true` in the inventory. To rebuild the first server, point `k3s_init_server` at another
+running server for the duration, so the rebuilt host joins instead of initialising a new cluster.
 
 #### Bootstrapping From Scratch
 

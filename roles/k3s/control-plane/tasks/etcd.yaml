@@ -1,0 +1,68 @@
+---
+# An empty etcd directory can exist next to SQLite; only etcd/member means etcd is live.
+- name: Inspect the datastore
+  ansible.builtin.stat:
+    path: "/var/lib/rancher/k3s/server/db/{{ item }}"
+  loop:
+    - state.db
+    - etcd/member
+  register: k3s_datastore
+
+- name: Migrate SQLite to embedded etcd
+  when:
+    - k3s_datastore.results[0].stat.exists
+    - not k3s_datastore.results[1].stat.exists
+  block:
+    - name: Stop k3s for a consistent copy
+      ansible.builtin.systemd:
+        name: k3s
+        state: stopped
+
+    - name: Back up the SQLite datastore
+      ansible.builtin.shell: |
+        set -o pipefail
+        dest=/var/lib/rancher/k3s/server/db/sqlite-backup-$(date +%Y%m%d%H%M%S)
+        mkdir -p "$dest"
+        cp -a /var/lib/rancher/k3s/server/db/state.db* "$dest"/
+        echo "$dest"
+      args:
+        executable: /bin/bash
+      register: k3s_sqlite_backup
+      changed_when: true
+
+    - name: Enable embedded etcd
+      ansible.builtin.copy:
+        content: |
+          ---
+          # Managed by Ansible - roles/k3s/control-plane/tasks/etcd.yaml
+          cluster-init: true
+        dest: /etc/rancher/k3s/config.yaml.d/40-cluster-init.yaml
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Start k3s and migrate
+      ansible.builtin.systemd:
+        name: k3s
+        state: started
+
+    # /readyz/etcd also reports ok on kine, so wait for the member and the API instead.
+    - name: Wait for the etcd datastore
+      ansible.builtin.shell: test -d /var/lib/rancher/k3s/server/db/etcd/member && /usr/local/bin/k3s kubectl get --raw /readyz
+      register: k3s_etcd_ready
+      until: k3s_etcd_ready.rc == 0 and k3s_etcd_ready.stdout == 'ok'
+      retries: 60
+      delay: 10
+      changed_when: false
+      when: not ansible_check_mode
+
+- name: Keep embedded etcd enabled
+  ansible.builtin.copy:
+    content: |
+      ---
+      # Managed by Ansible - roles/k3s/control-plane/tasks/etcd.yaml
+      cluster-init: true
+    dest: /etc/rancher/k3s/config.yaml.d/40-cluster-init.yaml
+    owner: root
+    group: root
+    mode: "0644"

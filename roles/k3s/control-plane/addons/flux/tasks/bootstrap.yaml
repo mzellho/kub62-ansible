@@ -8,7 +8,7 @@
   check_mode: false
   when:
     - flux_bootstrap | default(false) | bool
-    - inventory_hostname == groups['control_plane'][0]
+    - inventory_hostname == k3s_api_host
 
 - name: Bootstrap GitOps with GitHub
   ansible.builtin.shell: |
@@ -28,6 +28,6 @@
   changed_when: false
   when:
     - flux_bootstrap | default(false) | bool
-    - inventory_hostname == groups['control_plane'][0]
+    - inventory_hostname == k3s_api_host
     - k3s_flux_namespace.rc != 0
   become: false

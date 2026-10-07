@@ -1,8 +1,12 @@
 ---
 # Roles follow the groups: the first control_plane host initialises the cluster,
 # further ones join as servers, worker hosts join as agents.
-k3s_first_server: "{{ groups['control_plane'] | first }}"
-k3s_url: "https://{{ k3s_vip | default('', true) or hostvars[k3s_first_server]['ansible_host'] }}:6443"
+# Point both at a running server while the first one is being rebuilt.
+k3s_init_server: "{{ groups['control_plane'] | first }}"
+k3s_api_host: "{{ k3s_init_server }}"
+# true moves the init server from SQLite to embedded etcd on the next run.
+k3s_embedded_etcd: false
+k3s_url: "https://{{ k3s_vip | default('', true) or hostvars[k3s_init_server]['ansible_host'] }}:6443"
 k3s_group_labels: "{{ ['kub62.local/kiosk=true'] if inventory_hostname in groups.get('kiosk', []) else [] }}"
 # The kubelet may not set node-role labels itself, so only the labels role applies these.
 # Servers stay schedulable, so they carry the worker role as well.
@@ -12,7 +16,7 @@ k3s_role_labels: >-
 k3s_node_label_flags: >-
   {{ (k3s_node_labels | default([]) + k3s_group_labels) | map('regex_replace', '^(.+)$', '--node-label \1') | join(' ') }}
 k3s_server_cilium_flags: "{{ '--flannel-backend=none --disable-network-policy' if (cilium | default(false) | bool) else '' }}"
-k3s_server_join_flag: "{{ '--cluster-init' if inventory_hostname == k3s_first_server else '--server ' ~ k3s_url }}"
+k3s_server_join_flag: "{{ '--cluster-init' if inventory_hostname == k3s_init_server else '--server ' ~ k3s_url }}"
 k3s_server_flags: "server {{ k3s_server_common_flags }} {{ k3s_server_cilium_flags }} {{ k3s_server_join_flag }}"
 k3s_exec_flags: >-
   {{ ((k3s_server_flags if inventory_hostname in groups['control_plane'] else 'agent') ~ ' ' ~ k3s_node_label_flags) | split | join(' ') }}

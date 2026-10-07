@@ -14,7 +14,7 @@
     cmd: kubectl --namespace kube-system rollout restart deployment/coredns
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  delegate_to: "{{ groups['control_plane'] | first }}"
+  delegate_to: "{{ k3s_api_host }}"
   run_once: true
   changed_when: true
   when: k3s_installed.stat.exists | default(false)

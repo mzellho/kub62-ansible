@@ -35,7 +35,7 @@
       - "{{ inventory_hostname }}"
       - -o
       - "jsonpath={.status.nodeInfo.kubeletVersion} {.status.conditions[?(@.type=='Ready')].status}"
-  delegate_to: "{{ groups['control_plane'] | first }}"
+  delegate_to: "{{ k3s_api_host }}"
   register: k3s_node_state
   until: k3s_node_state.rc == 0 and k3s_node_state.stdout == k3s_version ~ ' True'
   retries: 60

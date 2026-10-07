@@ -12,7 +12,7 @@
   changed_when: "' created' in sops_namespace_apply.stdout"
   when:
     - sops_key is defined
-    - inventory_hostname == groups['control_plane'][0]
+    - inventory_hostname == k3s_api_host
 
 - name: Store age key as cluster secret
   ansible.builtin.shell: |
@@ -32,4 +32,4 @@
   no_log: true
   when:
     - sops_key is defined
-    - inventory_hostname == groups['control_plane'][0]
+    - inventory_hostname == k3s_api_host

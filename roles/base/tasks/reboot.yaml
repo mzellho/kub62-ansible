@@ -6,7 +6,7 @@
 - name: Check whether the node is part of the cluster
   ansible.builtin.command:
     argv: [/usr/local/bin/k3s, kubectl, get, node, "{{ inventory_hostname }}", --no-headers]
-  delegate_to: "{{ groups['control_plane'] | first }}"
+  delegate_to: "{{ k3s_api_host }}"
   register: base_cluster_node
   changed_when: false
   failed_when: false
@@ -25,7 +25,7 @@
       - --ignore-daemonsets
       - --delete-emptydir-data
       - --timeout=900s
-  delegate_to: "{{ groups['control_plane'] | first }}"
+  delegate_to: "{{ k3s_api_host }}"
   changed_when: true
   when: base_cluster_node.rc | default(1) == 0
 
@@ -48,7 +48,7 @@
       - "{{ inventory_hostname }}"
       - -o
       - "jsonpath={.status.conditions[?(@.type=='Ready')].status}"
-  delegate_to: "{{ groups['control_plane'] | first }}"
+  delegate_to: "{{ k3s_api_host }}"
   register: base_node_ready
   until: base_node_ready.rc == 0 and base_node_ready.stdout == 'True'
   retries: 60
@@ -59,7 +59,7 @@
 - name: Uncordon node after reboot
   ansible.builtin.command:
     argv: [/usr/local/bin/k3s, kubectl, uncordon, "{{ inventory_hostname }}"]
-  delegate_to: "{{ groups['control_plane'] | first }}"
+  delegate_to: "{{ k3s_api_host }}"
   changed_when: true
   when: base_cluster_node.rc | default(1) == 0
 
