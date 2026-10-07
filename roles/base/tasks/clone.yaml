@@ -128,6 +128,6 @@
 
 - name: "Wait for node to come back online: {{ inventory_hostname }}"
   ansible.builtin.wait_for_connection:
-    timeout: 300
+    timeout: 900
     delay: 10
   when: rpi_clone_result is not skipped
