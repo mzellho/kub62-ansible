@@ -32,3 +32,10 @@
     executable: /bin/bash
     creates: /usr/local/bin/k3s
   no_log: true
+
+- name: Point the agent at the registration address
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/system/k3s-agent.service.env
+    regexp: "^K3S_URL="
+    line: "K3S_URL='{{ k3s_url }}'"
+  notify: Restart k3s

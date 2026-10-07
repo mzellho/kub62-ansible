@@ -47,6 +47,7 @@
 - name: Configure worker nodes
   hosts: worker
   become: true
+  serial: 1
   tags: [k3s, worker]
   roles:
     - ../roles/k3s/base
