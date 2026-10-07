@@ -7,3 +7,9 @@
       - smartmontools
       - cryptsetup
     state: present
+
+- name: Load kernel modules Longhorn checks for
+  community.general.modprobe:
+    name: dm_crypt
+    state: present
+    persistent: present
