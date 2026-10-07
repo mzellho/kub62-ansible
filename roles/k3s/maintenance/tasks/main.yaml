@@ -1,0 +1,143 @@
+---
+- name: Grant the maintenance account drain permissions
+  ansible.builtin.command:
+    argv: [/usr/local/bin/k3s, kubectl, apply, -f, -]
+    stdin: |
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: kub62-node
+        namespace: kube-system
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: kub62-node-token
+        namespace: kube-system
+        annotations:
+          kubernetes.io/service-account.name: kub62-node
+      type: kubernetes.io/service-account-token
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: kub62-node
+      rules:
+        - apiGroups: [""]
+          resources: [nodes]
+          verbs: [get, list, watch, patch, update]
+        - apiGroups: [""]
+          resources: [pods]
+          verbs: [get, list, watch, delete]
+        - apiGroups: [""]
+          resources: [pods/eviction]
+          verbs: [create]
+        - apiGroups: [apps]
+          resources: [daemonsets, statefulsets, replicasets, deployments]
+          verbs: [get, list]
+        - apiGroups: [batch]
+          resources: [jobs]
+          verbs: [get, list]
+        - apiGroups: [longhorn.io]
+          resources: [volumes, nodes, replicas]
+          verbs: [get, list]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: kub62-node
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: kub62-node
+      subjects:
+        - kind: ServiceAccount
+          name: kub62-node
+          namespace: kube-system
+  delegate_to: "{{ k3s_api_host }}"
+  run_once: true
+  register: k3s_maintenance_rbac
+  changed_when: "' created' in k3s_maintenance_rbac.stdout or ' configured' in k3s_maintenance_rbac.stdout"
+
+- name: Read the maintenance token
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - -n
+      - kube-system
+      - get
+      - secret
+      - kub62-node-token
+      - -o
+      - "jsonpath={.data.token} {.data.ca\\.crt}"
+  delegate_to: "{{ k3s_api_host }}"
+  run_once: true
+  register: k3s_maintenance_token
+  until: k3s_maintenance_token.stdout.split(' ') | select | list | length == 2
+  retries: 12
+  delay: 5
+  changed_when: false
+  check_mode: false
+  ignore_errors: "{{ ansible_check_mode }}"
+  no_log: true
+
+- name: Write the maintenance kubeconfig
+  ansible.builtin.copy:
+    content: |
+      apiVersion: v1
+      kind: Config
+      clusters:
+        - name: kub62
+          cluster:
+            server: {{ k3s_url }}
+            certificate-authority-data: {{ k3s_maintenance_token.stdout.split(' ')[1] }}
+      users:
+        - name: kub62-node
+          user:
+            token: {{ k3s_maintenance_token.stdout.split(' ')[0] | b64decode }}
+      contexts:
+        - name: kub62
+          context:
+            cluster: kub62
+            user: kub62-node
+      current-context: kub62
+    dest: /etc/rancher/k3s/kub62-node.kubeconfig
+    owner: root
+    group: root
+    mode: "0600"
+  when: k3s_maintenance_token is succeeded
+  no_log: true
+
+- name: Install the maintenance tool
+  ansible.builtin.copy:
+    src: kub62-node
+    dest: /usr/local/bin/kub62-node
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the boot-time uncordon service
+  ansible.builtin.copy:
+    src: kub62-node-uncordon.service
+    dest: /etc/systemd/system/kub62-node-uncordon.service
+    owner: root
+    group: root
+    mode: "0644"
+  register: k3s_maintenance_unit
+
+- name: Enable the boot-time uncordon service
+  ansible.builtin.systemd:
+    name: kub62-node-uncordon.service
+    enabled: true
+    daemon_reload: "{{ k3s_maintenance_unit.changed }}"
+
+- name: Remove the old helper script
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/kub62-node.sh"
+    state: absent
+
+- name: Remove the tool from its first location
+  ansible.builtin.file:
+    path: /usr/local/sbin/kub62-node
+    state: absent

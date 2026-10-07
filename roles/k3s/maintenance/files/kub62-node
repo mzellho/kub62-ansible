@@ -1,66 +1,214 @@
 #!/bin/bash
-
+# Cluster-aware maintenance for a single KUB62 node. Installed by Ansible
+# (roles/k3s/maintenance); edit it there.
 set -euo pipefail
 
+KUBECONFIG_FILE=/etc/rancher/k3s/kub62-node.kubeconfig
+MARKER=/var/lib/kub62-node/uncordon-on-boot
+NODE=$(hostname -s)
+ASSUME_YES=0
+FORCE=0
+
 usage() {
-  local exit_code=${1:-1}
+  cat <<USAGE
+Usage: kub62-node [-y] [--force] <command> [args]
 
-  cat <<EOF
-Usage: $0 <shutdown|reboot>
+Commands:
+  status              Node, cluster and package state
+  update              apt upgrade + autoremove; drained reboot only if required
+  dist-upgrade        apt full-upgrade + autoremove; drained reboot if required
+  k3s-upgrade <ver>   Replace the k3s binary (e.g. v1.36.5+k3s1) and restart k3s
+  reboot              Drain, reboot, uncordon automatically once Ready again
+  shutdown            Drain, power off, uncordon automatically on next boot
+  drain | uncordon    Manual steps for special cases
 
-Actions:
-  shutdown       Drain the node and power it off
-  reboot         Reboot the node without draining it first
-  -h, --help     Show this help message
+Options:
+  -y, --yes           Do not ask for confirmation
+  --force             Skip the safety checks (other nodes Ready, nothing else
+                      cordoned, Longhorn healthy, etcd quorum)
 
-Notes:
-  - shutdown uses 'kubectl drain', which already marks the node
-    unschedulable before evicting pods.
-  - A cordoned node stays unschedulable after reboot/shutdown until
-    you run: kubectl uncordon <node>
-
-Examples:
-  $0 shutdown          # safe shutdown with drain + poweroff
-  $0 reboot            # direct reboot without drain
-EOF
-  exit "$exit_code"
+Prefer the Ansible plays for routine work across all nodes; this tool is for
+one node at a time.
+USAGE
+  exit "${1:-1}"
 }
 
-die() {
-  echo "Error: $*" >&2
-  exit 1
+die() { echo "Error: $*" >&2; exit 1; }
+info() { echo "==> $*"; }
+
+[[ $EUID -eq 0 ]] || exec sudo "$0" "$@"
+
+args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -y|--yes) ASSUME_YES=1 ;;
+    --force) FORCE=1 ;;
+    -h|--help) usage 0 ;;
+    *) args+=("$1") ;;
+  esac
+  shift
+done
+[[ ${#args[@]} -ge 1 ]] || usage 1
+CMD=${args[0]}
+
+kctl() { /usr/local/bin/k3s kubectl --kubeconfig "$KUBECONFIG_FILE" "$@"; }
+
+is_server() { systemctl list-unit-files k3s.service >/dev/null 2>&1 && [[ -f /etc/systemd/system/k3s.service ]]; }
+k3s_unit() { if is_server; then echo k3s; else echo k3s-agent; fi; }
+
+confirm() {
+  [[ $ASSUME_YES -eq 1 ]] && return 0
+  read -r -p "$1 [y/N] " answer
+  [[ $answer == [yYjJ] ]] || die "Aborted."
 }
 
-case "${1-}" in
-  "") usage 1 ;;
-  -h|--help) usage 0 ;;
-esac
+node_ready() {
+  [[ $(kctl get node "$1" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null) == True ]]
+}
 
-ACTION=$1
-shift
+preflight() {
+  [[ -r $KUBECONFIG_FILE ]] || die "$KUBECONFIG_FILE missing; run the Ansible maintenance role"
+  kctl get node "$NODE" >/dev/null || die "Kubernetes node '$NODE' not found"
+  [[ $FORCE -eq 1 ]] && { info "Safety checks skipped (--force)"; return 0; }
 
-if [[ $# -gt 0 ]]; then
-  die "This script does not accept options. Use only: shutdown or reboot"
-fi
+  local problems=0 name ready unsched
+  while read -r name ready unsched; do
+    [[ $name == "$NODE" ]] && continue
+    if [[ $ready != True ]]; then echo "  - node $name is not Ready"; problems=1; fi
+    if [[ $unsched == true ]]; then echo "  - node $name is cordoned (maintenance running elsewhere?)"; problems=1; fi
+  done < <(kctl get nodes -o jsonpath='{range .items[*]}{.metadata.name} {.status.conditions[?(@.type=="Ready")].status} {.spec.unschedulable}{"\n"}{end}')
 
-case "$ACTION" in
-  shutdown)
-    node=$(hostname -s)
+  local unhealthy
+  unhealthy=$(kctl -n longhorn-system get volumes.longhorn.io \
+    -o jsonpath='{range .items[*]}{.metadata.name}={.status.robustness}{"\n"}{end}' 2>/dev/null \
+    | grep -v -E '=(healthy|unknown)$' || true)
+  if [[ -n $unhealthy ]]; then echo "  - Longhorn volumes not healthy:"; sed 's/^/      /' <<<"$unhealthy"; problems=1; fi
 
-    if ! kubectl get node "$node" >/dev/null 2>&1; then
-      die "Kubernetes node '$node' was not found in the current kubeconfig context"
+  if is_server; then
+    local total up
+    total=$(kctl get nodes -l node-role.kubernetes.io/control-plane -o name | wc -l)
+    up=$(kctl get nodes -l node-role.kubernetes.io/control-plane \
+      -o jsonpath='{range .items[*]}{.metadata.name} {.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' \
+      | awk -v self="$NODE" '$1!=self && $2=="True"' | wc -l)
+    if (( up <= total / 2 )); then
+      echo "  - only $up of $total servers would remain: the API (and etcd quorum) goes down with this node"
+      problems=1
     fi
+  fi
 
-    echo "Draining current node ($node)..."
-    kubectl drain "$node" --ignore-daemonsets --delete-emptydir-data
-    echo "Powering off current node ($node)..."
-    sudo systemctl poweroff
+  [[ $problems -eq 0 ]] || die "Safety checks failed; fix the above or rerun with --force"
+  info "Safety checks passed"
+}
+
+do_drain() {
+  info "Draining $NODE"
+  kctl drain "$NODE" --ignore-daemonsets --delete-emptydir-data --timeout=15m \
+    || die "Drain failed; $NODE stays cordoned. Investigate, then 'kub62-node uncordon'"
+}
+
+arm_uncordon() {
+  mkdir -p "$(dirname "$MARKER")"
+  touch "$MARKER"
+}
+
+drained_power_action() {
+  local action=$1
+  preflight
+  confirm "Drain $NODE and $action it?"
+  do_drain
+  arm_uncordon
+  info "Running systemctl $action; the node uncordons itself once Ready again"
+  systemctl "$action"
+}
+
+apt_run() {
+  export DEBIAN_FRONTEND=noninteractive
+  local opts=(-y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
+  apt-get update
+  apt-get "${opts[@]}" "$1"
+  apt-get "${opts[@]}" autoremove
+}
+
+reboot_if_required() {
+  if [[ -f /var/run/reboot-required ]]; then
+    info "A reboot is required"
+    drained_power_action reboot
+  else
+    info "No reboot required"
+  fi
+}
+
+case "$CMD" in
+  status)
+    echo "Node:        $NODE ($(k3s_unit), $(/usr/local/bin/k3s --version | head -1 | awk '{print $3}'))"
+    if [[ -r $KUBECONFIG_FILE ]]; then
+      echo "Ready:       $(kctl get node "$NODE" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')"
+      cordoned=$(kctl get node "$NODE" -o jsonpath='{.spec.unschedulable}')
+      echo "Cordoned:    ${cordoned:-false}"
+      echo "Pods:        $(kctl get pods -A --field-selector spec.nodeName="$NODE" --no-headers | wc -l)"
+      echo "Server:      $(kctl version -o json | sed -n 's/.*"gitVersion": "\([^"]*\)".*/\1/p' | tail -1)"
+      echo "Longhorn:    $(kctl -n longhorn-system get volumes.longhorn.io -o jsonpath='{range .items[*]}{.status.robustness}{"\n"}{end}' | sort | uniq -c | xargs)"
+    fi
+    echo "Upgradable:  $(apt list --upgradable 2>/dev/null | grep -c / || true) packages (as of the last apt update)"
+    echo "Reboot req.: $([[ -f /var/run/reboot-required ]] && echo yes || echo no)"
+    [[ -f $MARKER ]] && echo "Pending:     uncordon on next boot"
     ;;
-  reboot)
-    echo "Rebooting current node..."
-    sudo systemctl reboot
+  update)
+    apt_run upgrade
+    reboot_if_required
     ;;
-  *)
-    die "Unknown action: $ACTION"
+  dist-upgrade)
+    confirm "Run apt full-upgrade on $NODE?"
+    apt_run full-upgrade
+    reboot_if_required
     ;;
+  k3s-upgrade)
+    target=${args[1]:-}
+    [[ $target =~ ^v1\.[0-9]+\.[0-9]+\+k3s[0-9]+$ ]] || die "Give a version like v1.36.5+k3s1"
+    current=$(/usr/local/bin/k3s --version | head -1 | awk '{print $3}')
+    [[ $current == "$target" ]] && { info "Already on $target"; exit 0; }
+    [[ $(printf '%s\n%s\n' "$current" "$target" | sort -V | head -1) == "$current" ]] \
+      || [[ $FORCE -eq 1 ]] || die "$target is older than $current; use --force to downgrade"
+    server=$(kctl version -o json | sed -n 's/.*"gitVersion": "\([^"]*\)".*/\1/p' | tail -1)
+    if ! is_server && [[ $(printf '%s\n%s\n' "$server" "$target" | sort -V | tail -1) != "$server" ]] && [[ $FORCE -eq 0 ]]; then
+      die "Agents must not be newer than the API server ($server); upgrade the servers first"
+    fi
+    preflight
+    confirm "Replace k3s $current with $target on $NODE and restart $(k3s_unit)?"
+    case $(uname -m) in aarch64) asset=k3s-arm64; sums=sha256sum-arm64.txt ;; x86_64) asset=k3s; sums=sha256sum-amd64.txt ;; *) die "Unsupported architecture" ;; esac
+    base="https://github.com/k3s-io/k3s/releases/download/${target//+/%2B}"
+    tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+    curl -fsSL -o "$tmp/$asset" "$base/$asset"
+    curl -fsSL -o "$tmp/sums" "$base/$sums"
+    (cd "$tmp" && grep " $asset\$" sums | sha256sum -c -) || die "Checksum mismatch"
+    install -m 0755 "$tmp/$asset" /usr/local/bin/k3s
+    systemctl restart "$(k3s_unit)"
+    info "Waiting for $NODE to report $target"
+    for _ in $(seq 1 60); do
+      [[ $(kctl get node "$NODE" -o jsonpath='{.status.nodeInfo.kubeletVersion}' 2>/dev/null) == "$target" ]] && node_ready "$NODE" && break
+      sleep 5
+    done
+    node_ready "$NODE" || die "$NODE is not Ready after the upgrade"
+    info "Done. Update k3s_version in the Ansible inventory, or the next upgrade play reverts this node."
+    ;;
+  reboot) drained_power_action reboot ;;
+  shutdown) drained_power_action poweroff ;;
+  drain)
+    preflight
+    confirm "Drain $NODE?"
+    do_drain
+    ;;
+  uncordon)
+    kctl uncordon "$NODE"
+    rm -f "$MARKER"
+    ;;
+  uncordon-on-boot)
+    # Called by kub62-node-uncordon.service.
+    [[ -f $MARKER ]] || exit 0
+    for _ in $(seq 1 180); do node_ready "$NODE" && break; sleep 5; done
+    node_ready "$NODE" || die "$NODE not Ready after 15 minutes; leaving it cordoned"
+    kctl uncordon "$NODE"
+    rm -f "$MARKER"
+    ;;
+  *) usage 1 ;;
 esac

@@ -60,6 +60,13 @@
   roles:
     - ../roles/k3s/labels
 
+- name: Install node maintenance tooling
+  hosts: control_plane:worker
+  become: true
+  tags: [k3s, maintenance]
+  roles:
+    - ../roles/k3s/maintenance
+
 - name: Configure kiosk nodes
   hosts: kiosk
   become: true

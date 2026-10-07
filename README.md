@@ -168,6 +168,7 @@ ansible-playbook playbooks/kub62.yaml --start-at-task "Install Flux CLI" -v
 | `kiosk`          | Kiosk display setup                                    |
 | `upgrade`        | k3s binary upgrade to `k3s_version` (`never`, opt-in)  |
 | `etcd`           | Move the init server from SQLite to embedded etcd      |
+| `maintenance`    | `kub62-node` tool and its service account              |
 
 #### Rolling Maintenance
 
@@ -183,6 +184,20 @@ ansible-playbook --tags base -e base_force_reboot=true playbooks/kub62.yaml
 
 # ⬆️ Upgrade k3s to k3s_version, control plane first
 ansible-playbook --tags upgrade playbooks/kub62.yaml
+```
+
+#### Maintaining a Single Node
+
+Every k3s node carries `kub62-node`, which runs as root via sudo and talks to the API with a dedicated, narrowly scoped
+service account. Before draining it checks that all other nodes are `Ready`, none is cordoned, Longhorn is healthy
+and the etcd quorum survives; after a reboot or shutdown a systemd unit uncordons the node once it is `Ready` again.
+
+```bash
+kub62-node status                   # node, cluster and package state
+kub62-node update                   # apt upgrade, drained reboot only if required
+kub62-node dist-upgrade             # apt full-upgrade, drained reboot only if required
+kub62-node k3s-upgrade v1.36.5+k3s1 # then update k3s_version in the inventory
+kub62-node reboot | shutdown        # drain first, uncordon automatically afterwards
 ```
 
 #### Growing to Several Servers
@@ -228,7 +243,6 @@ Applied to control-plane and worker nodes. It prepares the Pi for running [`k3s`
 
 - ⚙️ Adds `cgroup_memory=1 cgroup_enable=memory` kernel flags
 - 📦 Installs Longhorn dependencies
-- 🧰 Deploys `kub62-node.sh` helper script to the node user's home directory
 
 ## 🖥️ K3s Control-Plane Role
 

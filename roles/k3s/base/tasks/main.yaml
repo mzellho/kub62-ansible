@@ -11,5 +11,3 @@
   ansible.builtin.import_tasks: cmdline.yaml
 - name: Apply pending reboot
   ansible.builtin.import_tasks: reboot.yaml
-- name: Install node helper script
-  ansible.builtin.import_tasks: kub62-node.yaml

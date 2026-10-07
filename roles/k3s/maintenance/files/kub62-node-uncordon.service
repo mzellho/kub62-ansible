@@ -1,0 +1,14 @@
+# Managed by Ansible - roles/k3s/maintenance
+[Unit]
+Description=Uncordon this node after a kub62-node reboot or shutdown
+After=network-online.target k3s.service k3s-agent.service
+Wants=network-online.target
+ConditionPathExists=/var/lib/kub62-node/uncordon-on-boot
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/kub62-node uncordon-on-boot
+TimeoutStartSec=20min
+
+[Install]
+WantedBy=multi-user.target
