@@ -146,9 +146,22 @@
                   capabilities:
                     add: ["NET_ADMIN", "NET_RAW"]
                     drop: ["ALL"]
+                # The local API server: the lease is lost when this node's API fails.
+                volumeMounts:
+                  - name: kubeconfig
+                    mountPath: /etc/kubernetes/admin.conf
+                    readOnly: true
+            hostAliases:
+              - hostnames: [kubernetes]
+                ip: 127.0.0.1
             hostNetwork: true
             priorityClassName: system-node-critical
             serviceAccountName: kube-vip
+            volumes:
+              - name: kubeconfig
+                hostPath:
+                  path: /etc/rancher/k3s/k3s.yaml
+                  type: File
             tolerations:
               - effect: NoSchedule
                 operator: Exists
