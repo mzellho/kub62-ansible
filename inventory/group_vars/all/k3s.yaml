@@ -5,7 +5,7 @@
 k3s_init_server: "{{ groups['control_plane'] | first }}"
 k3s_api_host: "{{ k3s_init_server }}"
 # true moves the init server from SQLite to embedded etcd on the next run.
-k3s_embedded_etcd: false
+k3s_embedded_etcd: true
 k3s_url: "https://{{ k3s_vip | default('', true) or hostvars[k3s_init_server]['ansible_host'] }}:6443"
 k3s_group_labels: "{{ ['kub62.local/kiosk=true'] if inventory_hostname in groups.get('kiosk', []) else [] }}"
 # The kubelet may not set node-role labels itself, so only the labels role applies these.
