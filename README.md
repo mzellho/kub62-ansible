@@ -45,6 +45,13 @@ The following steps are therefore still manual prerequisites:
 - Flash Raspberry Pi OS to the initial boot medium
 - Set hostname, enable SSH, and optionally preconfigure Wi-Fi in Raspberry Pi Imager
 - Ensure your SSH public key is present on each node (ideally via Raspberry Pi Imager on first boot)
+- Trixie images from the Imager ship without passwordless sudo, which the playbooks need. Restore it on each fresh
+  boot medium (Bookworm images already have this file):
+
+```bash
+echo 'pi ALL=(ALL) NOPASSWD: ALL' | sudo tee /etc/sudoers.d/010_pi-nopasswd
+sudo chmod 0440 /etc/sudoers.d/010_pi-nopasswd
+```
 
 Generate an SSH key locally if you do not already have one:
 
