@@ -6,6 +6,7 @@
   loop:
     - state.db
     - etcd/member
+    - state.db.migrated
   register: k3s_datastore
 
 - name: Migrate SQLite to embedded etcd
@@ -56,6 +57,7 @@
       changed_when: false
       when: not ansible_check_mode
 
+# Only a server that was migrated from SQLite needs cluster-init kept.
 - name: Keep embedded etcd enabled
   ansible.builtin.copy:
     content: |
@@ -66,3 +68,4 @@
     owner: root
     group: root
     mode: "0644"
+  when: k3s_datastore.results[2].stat.exists or k3s_datastore.results[0].stat.exists
