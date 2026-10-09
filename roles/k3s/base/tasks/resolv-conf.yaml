@@ -1,6 +1,6 @@
 ---
-# Pods resolve via Pi-hole, the host keeps public resolvers so containerd can
-# still pull the Pi-hole image while Pi-hole is down.
+# Pods resolve via the router, which also answers the internal kub62 names;
+# nothing the cluster needs to recover depends on Pi-hole.
 - name: Check whether k3s is already installed
   ansible.builtin.stat:
     path: /usr/local/bin/k3s
@@ -17,7 +17,8 @@
   when: k3s_pod_resolver | default('') | length > 0
 
 - name: Deploy resolver for pods and CoreDNS
-  # Single nameserver: CoreDNS picks randomly and would bypass the filter.
+  # Single nameserver: CoreDNS picks randomly, a public fallback would answer
+  # internal names with the public address.
   ansible.builtin.copy:
     content: |
       # Managed by Ansible - roles/k3s/base/tasks/resolv-conf.yaml
