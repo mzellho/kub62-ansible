@@ -220,6 +220,7 @@ ansible-playbook -l control_plane --tags etcd -e k3s_embedded_etcd=true playbook
 
 Then set `k3s_embedded_etcd: true` in the inventory. To rebuild the first server, point `k3s_init_server` at another
 running server for the duration, so the rebuilt host joins instead of initialising a new cluster.
+Pass it with `-e k3s_init_server=<other-server>`: `group_vars/all` defines it and beats the `vars` in `hosts.yaml`.
 
 #### Bootstrapping From Scratch
 
@@ -239,6 +240,10 @@ Applied to **all** nodes (control-plane, workers, and kiosk). It configures:
 
 - 💾 Optional clone to NVMe/USB via [`rpi-clone`](https://github.com/geerlingguy/rpi-clone) is executed first (when
   `clone_destination` is set), including shutdown and reconnect handling
+  - After the clone the play powers the node off and waits 15 minutes for it to come back from the new medium:
+    pull the stick and power it on within that window.
+  - A Pi 5 boots from a USB stick only on a USB 2 port and only on a warm reboot (`systemctl reboot`); after a cold
+    start it boots silently from the NVMe.
 - 🏷️ Hostname
 - 🌍 Timezone and locale
 - 🔇 Disables Bluetooth, onboard audio, ACT LED, and ModemManager
