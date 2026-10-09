@@ -6,5 +6,6 @@
       - dnsutils
       - net-tools
       - jq
+      - yq
     state: present
     update_cache: true

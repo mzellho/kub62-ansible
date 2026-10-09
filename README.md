@@ -169,6 +169,7 @@ ansible-playbook playbooks/kub62.yaml --start-at-task "Install Flux CLI" -v
 | `cilium`         | Cilium CLI add-on                                      |
 | `sops`           | SOPS age secret                                        |
 | `flux`           | Flux CLI + bootstrap                                   |
+| `clis`           | helm, k9s, velero, cmctl and scw CLIs                  |
 | `worker`         | Worker node k3s join                                   |
 | `oidc`           | API server OIDC trust                                  |
 | `kube-vip`       | API virtual IP                                         |
@@ -284,6 +285,15 @@ Runs on control-plane nodes in the Control Plane Add-ons phase (when enabled via
 - 📦 Installs the Flux CLI
 - ⌨️ Adds shell completion for `flux`
 - 🚀 Bootstraps Flux controllers into the cluster when `flux_bootstrap: true` (only runs on the designated node)
+
+### 🧰 CLIs Add-on
+
+Runs on control-plane nodes in the Control Plane Add-ons phase. It installs the CLIs listed in
+`inventory/group_vars/all/clis.yaml` (`helm`, `k9s`, `velero`, `cmctl`, `scw`):
+
+- 📌 Pins each version and verifies the download against the release checksum
+- 📂 Keeps every version in `/opt/clis/<name>/<version>` and links the current one into `/usr/local/bin`
+- ⌨️ Adds shell completion for each CLI
 
 ### 🔐 SOPS Add-on
 

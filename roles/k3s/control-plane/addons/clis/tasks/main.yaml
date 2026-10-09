@@ -1,0 +1,78 @@
+---
+# Each version gets its own directory; /usr/local/bin only links to the current one.
+- name: Ensure a directory per CLI version
+  ansible.builtin.file:
+    path: "/opt/clis/{{ item.name }}/{{ item.version }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ clis }}"
+  loop_control:
+    label: "{{ item.name }} {{ item.version }}"
+
+- name: Download CLI binaries
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "/opt/clis/{{ item.name }}/{{ item.version }}/{{ item.name }}"
+    checksum: "{{ item.checksum }}"
+    mode: "0755"
+  loop: "{{ clis | rejectattr('member', 'defined') }}"
+  loop_control:
+    label: "{{ item.name }} {{ item.version }}"
+
+- name: Download CLI archives
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "/opt/clis/{{ item.name }}/{{ item.version }}/{{ item.url | basename }}"
+    checksum: "{{ item.checksum }}"
+    mode: "0644"
+  loop: "{{ clis | selectattr('member', 'defined') }}"
+  loop_control:
+    label: "{{ item.name }} {{ item.version }}"
+
+- name: Unpack CLI archives
+  ansible.builtin.unarchive:
+    src: "/opt/clis/{{ item.name }}/{{ item.version }}/{{ item.url | basename }}"
+    dest: "/opt/clis/{{ item.name }}/{{ item.version }}"
+    remote_src: true
+    include: ["{{ item.member }}"]
+    extra_opts: ["--strip-components={{ item.member.split('/') | length - 1 }}"]
+    creates: "/opt/clis/{{ item.name }}/{{ item.version }}/{{ item.name }}"
+  loop: "{{ clis | selectattr('member', 'defined') }}"
+  loop_control:
+    label: "{{ item.name }} {{ item.version }}"
+
+- name: Link the current CLI versions
+  ansible.builtin.file:
+    src: "/opt/clis/{{ item.name }}/{{ item.version }}/{{ item.name }}"
+    dest: "/usr/local/bin/{{ item.name }}"
+    state: link
+    force: true
+  loop: "{{ clis }}"
+  loop_control:
+    label: "{{ item.name }} {{ item.version }}"
+
+- name: Render CLI shell completion
+  ansible.builtin.command:
+    argv: "{{ ['/usr/local/bin/' ~ item.name] + item.completion }}"
+  register: clis_completion
+  changed_when: false
+  # The binaries do not exist yet in a dry run.
+  when: not ansible_check_mode
+  loop: "{{ clis }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Ensure bash completion directory exists
+  ansible.builtin.file:
+    path: /etc/bash_completion.d
+    state: directory
+    mode: "0755"
+
+- name: Enable CLI shell completion
+  ansible.builtin.copy:
+    content: "{{ item.stdout }}\n"
+    dest: "/etc/bash_completion.d/{{ item.item.name }}"
+    mode: "0644"
+  loop: "{{ clis_completion.results | selectattr('stdout', 'defined') }}"
+  loop_control:
+    label: "{{ item.item.name }}"

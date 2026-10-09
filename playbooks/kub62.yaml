@@ -43,6 +43,8 @@
       tags: [sops]
     - role: ../roles/k3s/control-plane/addons/flux
       tags: [flux]
+    - role: ../roles/k3s/control-plane/addons/clis
+      tags: [clis]
 
 - name: Configure worker nodes
   hosts: worker

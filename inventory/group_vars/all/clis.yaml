@@ -1,0 +1,40 @@
+---
+# CLIs on the control-plane nodes for what Ansible and the GitOps repository deploy.
+# Bump a version here; the next run installs it next to the old one and repoints the symlink.
+clis_arch: arm64
+helm_version: v4.3.0
+k9s_version: v0.51.0
+velero_version: v1.18.4
+cmctl_version: v2.6.1
+scw_version: v2.65.1
+# member: path of the binary inside the archive; without it the download is the binary itself.
+# completion: arguments that print the bash completion script.
+clis:
+  - name: helm
+    version: "{{ helm_version }}"
+    url: "https://get.helm.sh/helm-{{ helm_version }}-linux-{{ clis_arch }}.tar.gz"
+    checksum: "sha256:https://get.helm.sh/helm-{{ helm_version }}-linux-{{ clis_arch }}.tar.gz.sha256sum"
+    member: "linux-{{ clis_arch }}/helm"
+    completion: [completion, bash]
+  - name: k9s
+    version: "{{ k9s_version }}"
+    url: "https://github.com/derailed/k9s/releases/download/{{ k9s_version }}/k9s_Linux_{{ clis_arch }}.tar.gz"
+    checksum: "sha256:https://github.com/derailed/k9s/releases/download/{{ k9s_version }}/checksums.sha256"
+    member: k9s
+    completion: [completion, bash]
+  - name: velero
+    version: "{{ velero_version }}"
+    url: "https://github.com/vmware-tanzu/velero/releases/download/{{ velero_version }}/velero-{{ velero_version }}-linux-{{ clis_arch }}.tar.gz"
+    checksum: "sha256:https://github.com/vmware-tanzu/velero/releases/download/{{ velero_version }}/CHECKSUM"
+    member: "velero-{{ velero_version }}-linux-{{ clis_arch }}/velero"
+    completion: [completion, bash]
+  - name: cmctl
+    version: "{{ cmctl_version }}"
+    url: "https://github.com/cert-manager/cmctl/releases/download/{{ cmctl_version }}/cmctl_linux_{{ clis_arch }}"
+    checksum: "sha256:https://github.com/cert-manager/cmctl/releases/download/{{ cmctl_version }}/checksums.txt"
+    completion: [completion, bash]
+  - name: scw
+    version: "{{ scw_version }}"
+    url: "https://github.com/scaleway/scaleway-cli/releases/download/{{ scw_version }}/scaleway-cli_{{ scw_version[1:] }}_linux_{{ clis_arch }}"
+    checksum: "sha256:https://github.com/scaleway/scaleway-cli/releases/download/{{ scw_version }}/SHA256SUMS"
+    completion: [autocomplete, script, shell=bash]
