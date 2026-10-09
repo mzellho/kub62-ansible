@@ -124,6 +124,18 @@ your setup.
 | `kiosk_urls`                   | `host`       | Space-separated URLs for Chromium to open in kiosk mode                                                |
 | `sops_key`                     | `host`       | Path to the local age private key file used on the first control-plane to create the `sops-age` secret |
 
+### Secrets
+
+`k3s_token` and `flux_pat` do not have to sit in plain text. Put a vault password into `.vaultpass` (gitignored,
+mode 600) and encrypt each value inline; type the value, then Ctrl-D:
+
+```bash
+ansible-vault encrypt_string --vault-password-file .vaultpass --stdin-name k3s_token
+```
+
+Replace the plain value in `inventory/hosts.yaml` with the output and let Ansible find the password, for example with
+`export ANSIBLE_VAULT_PASSWORD_FILE=.vaultpass` before running the playbooks.
+
 ### Provisioning
 
 The playbook is fully **idempotent** - you can re-run it at any time and only tasks whose

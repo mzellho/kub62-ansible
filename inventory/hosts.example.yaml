@@ -46,6 +46,7 @@ kub62:
     k3s_vip: 192.168.10.5
     kube_vip_version: v1.2.4
     kube_vip_interface: eth0
+    # Plain here; encrypt it in the real inventory with ansible-vault (see README, "Secrets").
     k3s_token: 4711
   children:
     control_plane:
