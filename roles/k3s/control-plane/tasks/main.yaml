@@ -1,4 +1,7 @@
 ---
+- name: Encrypt secrets at rest
+  ansible.builtin.import_tasks: secrets-encryption.yaml
+  tags: [secrets-encryption]
 - name: Configure control plane service
   ansible.builtin.import_tasks: k3s.yaml
 - name: Move the datastore to embedded etcd
