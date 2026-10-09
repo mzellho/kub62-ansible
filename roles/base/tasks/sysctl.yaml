@@ -1,6 +1,6 @@
 ---
 - name: Tune inotify limits
-  ansible.builtin.sysctl:
+  ansible.posix.sysctl:
     name: "{{ item.key }}"
     value: "{{ item.value }}"
     sysctl_file: /etc/sysctl.d/99-inotify.conf

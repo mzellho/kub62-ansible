@@ -21,7 +21,7 @@
   register: cmdline_cgroup
   changed_when: "'changed' in cmdline_cgroup.stdout"
 
-- name: Flag reboot after kernel flag changes
+- name: Flag reboot after kernel flag changes # noqa: no-handler
   ansible.builtin.set_fact:
     reboot_needed: true
   when: cmdline_cgroup.changed

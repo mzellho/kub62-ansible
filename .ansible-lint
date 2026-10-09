@@ -1,3 +1,5 @@
 ---
 skip_list:
   - role-name[path]
+  # Role-prefixed variable names would rename half the inventory for no gain.
+  - var-naming[no-role-prefix]
