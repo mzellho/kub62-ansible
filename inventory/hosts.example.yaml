@@ -31,8 +31,10 @@ kub62:
     clone_label_prefix: kub62
     locale: de_AT.UTF-8
     timezone: Europe/Vienna
-    k3s_server_common_flags: "--write-kubeconfig-mode=644 --disable traefik --disable servicelb --disable local-storage"
+    k3s_server_common_flags: "--write-kubeconfig-mode=600 --disable traefik --disable servicelb --disable local-storage"
     k3s_pod_resolver: 192.168.30.100
+    # Secret in kube-system with the S3 target; empty keeps snapshots local only.
+    k3s_etcd_s3_secret: k3s-etcd-s3
     # Empty disables roles/k3s/control-plane/tasks/oidc.yaml.
     k3s_oidc_issuer_url: "https://auth.kub62.zellweb.net/application/o/headlamp/"
     k3s_oidc_client_id: headlamp

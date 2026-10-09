@@ -10,6 +10,12 @@
 - name: Trust Authentik as an OIDC provider
   ansible.builtin.import_tasks: oidc.yaml
   tags: [oidc]
+- name: Copy etcd snapshots off-site
+  ansible.builtin.import_tasks: etcd-s3.yaml
+  when:
+    - k3s_embedded_etcd | bool
+    - k3s_etcd_s3_secret | default('') | length > 0
+  tags: [etcd-s3]
 - name: Serve the API on a virtual IP
   ansible.builtin.import_tasks: kube-vip.yaml
   when: k3s_vip | default('') | length > 0

@@ -1,0 +1,14 @@
+---
+# Off-site copies of the scheduled etcd snapshots; Flux applies the Secret with the credentials.
+- name: Send etcd snapshots to S3
+  ansible.builtin.copy:
+    content: |
+      ---
+      # Managed by Ansible - roles/k3s/control-plane/tasks/etcd-s3.yaml
+      etcd-s3: true
+      etcd-s3-config-secret: {{ k3s_etcd_s3_secret }}
+    dest: /etc/rancher/k3s/config.yaml.d/50-etcd-s3.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart k3s

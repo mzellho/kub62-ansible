@@ -102,6 +102,7 @@ your setup.
 | `ansible_user`                 | `all`        | SSH user on the Pis (e.g. `pi`)                                                                        |
 | `clone_label_prefix`           | `all`        | Partition label prefix for cloned media (e.g. `kub62`)                                                 |
 | `k3s_server_common_flags`      | `all`        | Common k3s server flags shared by all control-plane nodes                                              |
+| `k3s_etcd_s3_secret`           | `all`        | Secret in kube-system with the S3 target for etcd snapshots (Flux applies it); empty keeps them local        |
 | `k3s_token`                    | `all`        | Pre-shared secret used to join nodes to the cluster                                                    |
 | `k3s_url`                      | `all`        | API server URL of the primary control-plane (used by secondary nodes and workers)                      |
 | `locale`                       | `all`        | System locale (e.g. `de_AT.UTF-8`)                                                                     |

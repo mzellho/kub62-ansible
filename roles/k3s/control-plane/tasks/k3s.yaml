@@ -18,6 +18,14 @@
     creates: /usr/local/bin/k3s
   no_log: true
 
+# INSTALL_K3S_EXEC only counts on first install, so existing units keep the old mode.
+- name: Keep the kubeconfig private on existing servers
+  ansible.builtin.replace:
+    path: /etc/systemd/system/k3s.service
+    regexp: "'--write-kubeconfig-mode=644'"
+    replace: "'--write-kubeconfig-mode=600'"
+  notify: Restart k3s
+
 - name: Harden kubeconfig permissions
   ansible.builtin.file:
     path: /etc/rancher/k3s/k3s.yaml
