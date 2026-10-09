@@ -25,3 +25,11 @@
     - ModemManager
   register: disable_services_result
   failed_when: false
+
+# NetworkManager would start it again via D-Bus activation; WiFi stays off.
+- name: Mask wpa_supplicant
+  ansible.builtin.systemd:
+    name: wpa_supplicant
+    state: stopped
+    enabled: false
+    masked: true
