@@ -1,0 +1,18 @@
+---
+# etcd metrics on the node address (port 2381) for Prometheus; without them a lost quorum raises no alert.
+- name: Check whether k3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+
+- name: Expose etcd metrics
+  ansible.builtin.copy:
+    content: |
+      ---
+      # Managed by Ansible - roles/k3s/control-plane/tasks/etcd-metrics.yaml
+      etcd-expose-metrics: true
+    dest: /etc/rancher/k3s/config.yaml.d/50-etcd-metrics.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart k3s
