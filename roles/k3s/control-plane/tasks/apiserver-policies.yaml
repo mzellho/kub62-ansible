@@ -62,14 +62,33 @@
         # People: everything they do.
         - level: Metadata
           userGroups: ["{{ k3s_oidc_prefix | default('oidc:') }}kub62-admins"]
-        # Secrets: every access, without the content.
+        # Ways into a running workload, by anyone.
+        - level: Metadata
+          resources:
+            - group: ""
+              resources: [pods/exec, pods/attach, pods/portforward, nodes/proxy, services/proxy]
+        # Kubelets read the secrets of their pods all the time.
+        - level: None
+          userGroups: ["system:nodes"]
+        # Secrets: reads without the content; watch is the controllers' steady state.
         - level: Metadata
           resources:
             - group: ""
               resources: [secrets]
-        # Everyone else: changes only.
+          verbs: [get, list]
         - level: Metadata
+          resources:
+            - group: rbac.authorization.k8s.io
           verbs: [create, update, patch, delete, deletecollection]
+        - level: Metadata
+          verbs: [delete, deletecollection]
+        # Controllers and k3s write status constantly; their other changes are noise here.
+        - level: None
+          userGroups: ["system:serviceaccounts"]
+        - level: None
+          users: ["system:k3s-supervisor", "system:apiserver", "system:kube-controller-manager", "system:kube-scheduler"]
+        - level: Metadata
+          verbs: [create, update, patch]
         - level: None
     dest: /etc/rancher/k3s/audit-policy.yaml
     owner: root
