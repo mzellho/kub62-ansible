@@ -9,6 +9,8 @@
         name: kub62-node
         namespace: kube-system
       ---
+      # Long-lived on purpose: the kub62-node script runs on the hosts (drain at shutdown, uncordon at
+      # boot), where no projected token can be renewed. The role below limits what it can do.
       apiVersion: v1
       kind: Secret
       metadata:
