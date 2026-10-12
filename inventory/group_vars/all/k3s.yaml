@@ -36,3 +36,5 @@ k3s_kubelet_config:
     nodefs.available: 5%
     imagefs.available: 5%
   imageMaximumGCAge: 336h
+  # A fork bomb in one pod cannot exhaust the PIDs of the node.
+  podPidsLimit: 4096

@@ -1,0 +1,97 @@
+---
+# Pod Security default for namespaces without their own labels, and an API audit log
+# for changes and for everything OIDC users do (Loki reads it via Alloy).
+
+- name: Check whether k3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+
+- name: Ensure the audit log directory exists
+  ansible.builtin.file:
+    path: /var/log/kubernetes/audit
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Deploy the Pod Security admission defaults
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - roles/k3s/control-plane/tasks/apiserver-policies.yaml
+      # Namespaces with their own pod-security labels keep them; this covers the rest.
+      apiVersion: apiserver.config.k8s.io/v1
+      kind: AdmissionConfiguration
+      plugins:
+        - name: PodSecurity
+          configuration:
+            apiVersion: pod-security.admission.config.k8s.io/v1
+            kind: PodSecurityConfiguration
+            defaults:
+              enforce: baseline
+              enforce-version: latest
+              audit: restricted
+              audit-version: latest
+              warn: restricted
+              warn-version: latest
+            exemptions:
+              namespaces: [kube-system]
+    dest: /etc/rancher/k3s/psa.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart k3s
+
+- name: Deploy the audit policy
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - roles/k3s/control-plane/tasks/apiserver-policies.yaml
+      apiVersion: audit.k8s.io/v1
+      kind: Policy
+      omitStages: [RequestReceived]
+      rules:
+        # Health checks, events and leader-election leases: volume without value.
+        - level: None
+          nonResourceURLs: ["/healthz*", "/readyz*", "/livez*", "/version", "/metrics", "/openapi*"]
+        - level: None
+          resources:
+            - group: ""
+              resources: [events]
+            - group: coordination.k8s.io
+              resources: [leases]
+        # People: everything they do.
+        - level: Metadata
+          userGroups: ["{{ k3s_oidc_prefix | default('oidc:') }}kub62-admins"]
+        # Secrets: every access, without the content.
+        - level: Metadata
+          resources:
+            - group: ""
+              resources: [secrets]
+        # Everyone else: changes only.
+        - level: Metadata
+          verbs: [create, update, patch, delete, deletecollection]
+        - level: None
+    dest: /etc/rancher/k3s/audit-policy.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart k3s
+
+- name: Point the API server at both policies
+  ansible.builtin.copy:
+    content: |
+      ---
+      # Managed by Ansible - roles/k3s/control-plane/tasks/apiserver-policies.yaml
+      # The + appends; without it this list would replace the OIDC argument.
+      kube-apiserver-arg+:
+        - "admission-control-config-file=/etc/rancher/k3s/psa.yaml"
+        - "audit-policy-file=/etc/rancher/k3s/audit-policy.yaml"
+        - "audit-log-path=/var/log/kubernetes/audit/audit.log"
+        - "audit-log-maxage=7"
+        - "audit-log-maxbackup=3"
+        - "audit-log-maxsize=50"
+    dest: /etc/rancher/k3s/config.yaml.d/60-apiserver-policies.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart k3s

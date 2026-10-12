@@ -19,6 +19,9 @@
     - k3s_embedded_etcd | bool
     - k3s_etcd_s3_secret | default('') | length > 0
   tags: [etcd-s3]
+- name: Set Pod Security defaults and the API audit log
+  ansible.builtin.import_tasks: apiserver-policies.yaml
+  tags: [apiserver-policies]
 - name: Expose etcd metrics
   ansible.builtin.import_tasks: etcd-metrics.yaml
   when: k3s_embedded_etcd | bool
