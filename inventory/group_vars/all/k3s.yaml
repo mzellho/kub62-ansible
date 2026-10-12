@@ -38,3 +38,5 @@ k3s_kubelet_config:
   imageMaximumGCAge: 336h
   # A fork bomb in one pod cannot exhaust the PIDs of the node.
   podPidsLimit: 4096
+  # Fails instead of silently changing kernel settings (CIS); values in roles/k3s/base/tasks/kubelet.yaml.
+  protectKernelDefaults: true

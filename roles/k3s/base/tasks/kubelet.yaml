@@ -10,6 +10,23 @@
     state: directory
     mode: "0700"
 
+- name: Persist the kernel settings the kubelet expects
+  # protectKernelDefaults makes the kubelet refuse to start if these differ, instead of
+  # setting them itself; without this file the first reboot would keep it down.
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/90-kubelet.conf
+    reload: true
+    state: present
+  loop:
+    - { key: vm.overcommit_memory, value: "1" }
+    - { key: vm.panic_on_oom, value: "0" }
+    - { key: kernel.panic, value: "10" }
+    - { key: kernel.panic_on_oops, value: "1" }
+    - { key: kernel.keys.root_maxkeys, value: "1000000" }
+    - { key: kernel.keys.root_maxbytes, value: "25000000" }
+
 - name: Reserve resources for k3s and the OS
   # Later files in the config dir override k3s' own 00-k3s-defaults.conf.
   ansible.builtin.copy:
