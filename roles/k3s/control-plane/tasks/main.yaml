@@ -26,6 +26,9 @@
   ansible.builtin.import_tasks: etcd-metrics.yaml
   when: k3s_embedded_etcd | bool
   tags: [etcd-metrics]
+- name: Run CoreDNS with two replicas
+  ansible.builtin.import_tasks: coredns.yaml
+  tags: [coredns]
 - name: Serve the API on a virtual IP
   ansible.builtin.import_tasks: kube-vip.yaml
   when: k3s_vip | default('') | length > 0

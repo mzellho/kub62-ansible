@@ -1,0 +1,17 @@
+---
+# Two CoreDNS replicas. k3s' own manifest sets no replica count, and its apply leaves
+# fields alone that the manifest does not set, so the scale survives restarts and upgrades.
+- name: Read the CoreDNS replica count
+  ansible.builtin.command: k3s kubectl -n kube-system get deployment coredns -o jsonpath={.spec.replicas}
+  register: coredns_replicas
+  changed_when: false
+  failed_when: false
+  run_once: true
+
+- name: Run CoreDNS with two replicas
+  ansible.builtin.command: k3s kubectl -n kube-system scale deployment coredns --replicas={{ k3s_coredns_replicas | default(2) }}
+  when:
+    - coredns_replicas.rc == 0
+    - coredns_replicas.stdout | int != (k3s_coredns_replicas | default(2)) | int
+  changed_when: true
+  run_once: true
