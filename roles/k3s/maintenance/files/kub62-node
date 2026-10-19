@@ -151,7 +151,7 @@ case "$CMD" in
     fi
     echo "Upgradable:  $(apt list --upgradable 2>/dev/null | grep -c / || true) packages (as of the last apt update)"
     echo "Reboot req.: $([[ -f /var/run/reboot-required ]] && echo yes || echo no)"
-    [[ -f $MARKER ]] && echo "Pending:     uncordon on next boot"
+    if [[ -f $MARKER ]]; then echo "Pending:     uncordon on next boot"; fi
     ;;
   update)
     apt_run upgrade
