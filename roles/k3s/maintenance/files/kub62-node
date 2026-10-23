@@ -170,7 +170,8 @@ stop_server() {
   local vip iface
   vip=$(kctl -n kube-system get ds kube-vip-ds -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="address")].value}')
   info "Stopping k3s and all containers"
-  /usr/local/bin/k3s-killall.sh >/dev/null
+  # Its xtrace goes to stderr; the reboot has to follow either way.
+  /usr/local/bin/k3s-killall.sh >/dev/null 2>&1 || echo "Warning: k3s-killall.sh exited non-zero, rebooting anyway" >&2
   [[ -n $vip ]] || return 0
   iface=$(ip -o -4 addr show | awk -v a="$vip/32" '$4 == a {print $2; exit}')
   [[ -z $iface ]] || ip addr del "$vip/32" dev "$iface"
