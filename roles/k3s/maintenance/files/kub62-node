@@ -143,13 +143,17 @@ settle_server() {
 
 vip_holder() { kctl -n kube-system get lease plndr-cp-lock -o jsonpath='{.spec.holderIdentity}' 2>/dev/null; }
 
+VIP_LABEL=kub62.io/vip-release
+
 # kube-vip renews its lease through the local API only; stopping k3s on the holder leaves the VIP
-# pointing at a dead API server until the lease runs out (review3 F-82).
+# pointing at a dead API server until the lease runs out (review3 F-82). The label keeps the
+# DaemonSet pod off this node: a recreated pod would take the lease straight back, it is keyed
+# by node name.
 release_vip() {
   is_server || return 0
   [[ $(vip_holder) == "$NODE" ]] || return 0
   info "Handing the API VIP to another server"
-  kctl -n kube-system delete pod -l app.kubernetes.io/name=kube-vip-ds --field-selector spec.nodeName="$NODE" --wait=true
+  kctl label node "$NODE" "$VIP_LABEL=true" --overwrite >/dev/null
   local holder
   for _ in $(seq 1 30); do
     holder=$(vip_holder)
@@ -269,6 +273,7 @@ case "$CMD" in
     ;;
   uncordon)
     kctl uncordon "$NODE"
+    kctl label node "$NODE" "$VIP_LABEL-" >/dev/null
     rm -f "$MARKER"
     ;;
   uncordon-on-boot)
@@ -277,6 +282,7 @@ case "$CMD" in
     for _ in $(seq 1 180); do node_ready "$NODE" && break; sleep 5; done
     node_ready "$NODE" || die "$NODE not Ready after 15 minutes; leaving it cordoned"
     kctl uncordon "$NODE"
+    kctl label node "$NODE" "$VIP_LABEL-" >/dev/null
     rm -f "$MARKER"
     ;;
   *) usage 1 ;;

@@ -99,6 +99,9 @@
                     - matchExpressions:
                         - key: node-role.kubernetes.io/control-plane
                           operator: Exists
+                        # Set by kub62-node before a server reboot, so the VIP moves while this API still runs.
+                        - key: kub62.io/vip-release
+                          operator: DoesNotExist
             containers:
               - name: kube-vip
                 image: ghcr.io/kube-vip/kube-vip:{{ kube_vip_version }}
