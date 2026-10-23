@@ -111,6 +111,12 @@
   when: k3s_maintenance_token is succeeded
   no_log: true
 
+- name: Install etcdctl on the servers
+  ansible.builtin.apt:
+    name: etcd-client
+    state: present
+  when: inventory_hostname in groups['control_plane'] | default([])
+
 - name: Install the maintenance tool
   ansible.builtin.copy:
     src: kub62-node

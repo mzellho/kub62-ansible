@@ -22,6 +22,9 @@
 - name: Set Pod Security defaults and the API audit log
   ansible.builtin.import_tasks: apiserver-policies.yaml
   tags: [apiserver-policies]
+- name: Give the embedded controllers longer leader leases
+  ansible.builtin.import_tasks: leader-election.yaml
+  tags: [leader-election]
 - name: Expose etcd metrics
   ansible.builtin.import_tasks: etcd-metrics.yaml
   when: k3s_embedded_etcd | bool

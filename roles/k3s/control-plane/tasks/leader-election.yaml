@@ -1,0 +1,24 @@
+---
+# A missed lease renewal ends k3s and its etcd member with it (review3 F-77).
+- name: Give the embedded controllers more time to renew their leases
+  ansible.builtin.copy:
+    content: |
+      ---
+      # Managed by Ansible - roles/k3s/control-plane/tasks/leader-election.yaml
+      kube-controller-manager-arg+:
+        - "leader-elect-lease-duration=30s"
+        - "leader-elect-renew-deadline=20s"
+        - "leader-elect-retry-period=4s"
+      kube-scheduler-arg+:
+        - "leader-elect-lease-duration=30s"
+        - "leader-elect-renew-deadline=20s"
+        - "leader-elect-retry-period=4s"
+      kube-cloud-controller-manager-arg+:
+        - "leader-elect-lease-duration=30s"
+        - "leader-elect-renew-deadline=20s"
+        - "leader-elect-retry-period=4s"
+    dest: /etc/rancher/k3s/config.yaml.d/70-leader-election.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart k3s

@@ -106,6 +106,41 @@ do_drain() {
     || die "Drain failed; $NODE stays cordoned. Investigate, then 'kub62-node uncordon'"
 }
 
+ETCD_TLS=/var/lib/rancher/k3s/server/tls/etcd
+etcd() {
+  etcdctl --endpoints=https://127.0.0.1:2379 --cacert="$ETCD_TLS/server-ca.crt" \
+    --cert="$ETCD_TLS/server-client.crt" --key="$ETCD_TLS/server-client.key" "$@"
+}
+
+# A drain loads the remaining servers; going down while etcd is slow cost the quorum (review3 F-77).
+settle_server() {
+  is_server || return 0
+  if ! command -v etcdctl >/dev/null; then
+    echo "Warning: etcdctl missing, skipping the etcd checks (run the Ansible maintenance role)" >&2
+    return 0
+  fi
+  local cores load
+  cores=$(nproc)
+  info "Waiting for load below $cores and a healthy etcd (up to 10 minutes)"
+  for _ in $(seq 1 60); do
+    load=$(cut -d' ' -f1 /proc/loadavg)
+    if awk -v l="$load" -v c="$cores" 'BEGIN{exit !(l < c)}' && etcd endpoint health --cluster >/dev/null 2>&1; then break; fi
+    sleep 10
+  done
+  awk -v l="$(cut -d' ' -f1 /proc/loadavg)" -v c="$cores" 'BEGIN{exit !(l < c)}' \
+    || [[ $FORCE -eq 1 ]] || die "Load still at or above $cores; $NODE stays cordoned, retry later or use --force"
+  etcd endpoint health --cluster >/dev/null 2>&1 || [[ $FORCE -eq 1 ]] || die "etcd not healthy; $NODE stays cordoned"
+  local status self target
+  status=$(etcd endpoint status)
+  if [[ $(awk -F', ' '{print $5}' <<<"$status") == true ]]; then
+    self=$(awk -F', ' '{print $2}' <<<"$status")
+    target=$(etcd member list | awk -F', ' -v s="$self" '$1 != s && $2 == "started" {print $1; exit}')
+    [[ -n $target ]] || die "No other started etcd member to hand the leadership to"
+    info "Handing etcd leadership to $target"
+    etcd move-leader "$target"
+  fi
+}
+
 arm_uncordon() {
   mkdir -p "$(dirname "$MARKER")"
   touch "$MARKER"
@@ -116,6 +151,7 @@ drained_power_action() {
   preflight
   confirm "Drain $NODE and $action it?"
   do_drain
+  settle_server
   arm_uncordon
   info "Running systemctl $action; the node uncordons itself once Ready again"
   systemctl "$action"
