@@ -31,3 +31,15 @@
     - inventory_hostname == k3s_api_host
     - k3s_flux_namespace.rc != 0
   become: false
+
+- name: Check Flux health
+  ansible.builtin.command:
+    argv: [flux, check]
+  environment:
+    KUBECONFIG: "/home/{{ ansible_user }}/.kube/config"
+  changed_when: false
+  check_mode: false
+  when:
+    - flux_bootstrap | default(false) | bool
+    - inventory_hostname == k3s_api_host
+  become: false

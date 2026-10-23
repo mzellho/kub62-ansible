@@ -299,6 +299,7 @@ Runs on control-plane nodes in the Control Plane Add-ons phase (when enabled via
 - 📦 Installs the Flux CLI
 - ⌨️ Adds shell completion for `flux`
 - 🚀 Bootstraps Flux controllers into the cluster when `flux_bootstrap: true` (only runs on the designated node)
+- 🩺 Runs `flux check` on that node afterwards, also when Flux was already there
 
 ### 🧰 CLIs Add-on
 
