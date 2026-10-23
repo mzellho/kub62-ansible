@@ -141,6 +141,37 @@ settle_server() {
   fi
 }
 
+vip_holder() { kctl -n kube-system get lease plndr-cp-lock -o jsonpath='{.spec.holderIdentity}' 2>/dev/null; }
+
+# kube-vip renews its lease through the local API only; stopping k3s on the holder leaves the VIP
+# pointing at a dead API server until the lease runs out (review3 F-82).
+release_vip() {
+  is_server || return 0
+  [[ $(vip_holder) == "$NODE" ]] || return 0
+  info "Handing the API VIP to another server"
+  kctl -n kube-system delete pod -l app.kubernetes.io/name=kube-vip-ds --field-selector spec.nodeName="$NODE" --wait=true
+  local holder
+  for _ in $(seq 1 30); do
+    holder=$(vip_holder)
+    [[ -n $holder && $holder != "$NODE" ]] && { info "VIP now held by $holder"; return 0; }
+    sleep 2
+  done
+  [[ $FORCE -eq 1 ]] || die "The VIP did not move away from $NODE; it stays cordoned, retry or use --force"
+}
+
+# Stopping the unit leaves the containers running, so kube-vip could still answer for the VIP while
+# the host shuts down.
+stop_server() {
+  is_server || return 0
+  local vip iface
+  vip=$(kctl -n kube-system get ds kube-vip-ds -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="address")].value}')
+  info "Stopping k3s and all containers"
+  /usr/local/bin/k3s-killall.sh >/dev/null
+  [[ -n $vip ]] || return 0
+  iface=$(ip -o -4 addr show | awk -v a="$vip/32" '$4 == a {print $2; exit}')
+  [[ -z $iface ]] || ip addr del "$vip/32" dev "$iface"
+}
+
 arm_uncordon() {
   mkdir -p "$(dirname "$MARKER")"
   touch "$MARKER"
@@ -152,7 +183,9 @@ drained_power_action() {
   confirm "Drain $NODE and $action it?"
   do_drain
   settle_server
+  release_vip
   arm_uncordon
+  stop_server
   info "Running systemctl $action; the node uncordons itself once Ready again"
   systemctl "$action"
 }
