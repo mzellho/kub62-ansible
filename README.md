@@ -43,6 +43,8 @@ This repository starts **after** Raspberry Pi OS has already been flashed and th
 The following steps are therefore still manual prerequisites:
 
 - Flash Raspberry Pi OS to the initial boot medium
+- A USB stick as initial boot medium only boots on a warm start and only from a USB 2 port: after a cold
+  start the Pi skips it, so power on, then reboot
 - Set hostname, enable SSH, and optionally preconfigure Wi-Fi in Raspberry Pi Imager
 - Ensure your SSH public key is present on each node (ideally via Raspberry Pi Imager on first boot)
 - Trixie images from the Imager ship without passwordless sudo, which the playbooks need. Restore it on each fresh
