@@ -1,5 +1,10 @@
 ---
 # A missed lease renewal ends k3s and its etcd member with it (review3 F-77).
+- name: Check whether k3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+
 - name: Give the embedded controllers more time to renew their leases
   ansible.builtin.copy:
     content: |
