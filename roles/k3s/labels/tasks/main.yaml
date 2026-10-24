@@ -26,3 +26,14 @@
   run_once: true
   register: k3s_node_label
   changed_when: k3s_node_label.stdout is defined and 'not labeled' not in k3s_node_label.stdout
+
+# Same as labels: --node-taint only applies at registration. Taints dropped from the inventory stay on the node.
+- name: Reconcile node taints from inventory
+  ansible.builtin.command: >-
+    /usr/local/bin/k3s kubectl taint node {{ item }} --overwrite
+    {{ hostvars[item].k3s_node_taints | join(" ") }}
+  loop: "{{ groups['control_plane'] + groups['worker'] }}"
+  when: hostvars[item].k3s_node_taints | default([]) | length > 0
+  run_once: true
+  register: k3s_node_taint
+  changed_when: k3s_node_taint.stdout is defined and 'not tainted' not in k3s_node_taint.stdout
