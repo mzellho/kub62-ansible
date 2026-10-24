@@ -2,5 +2,6 @@
 # Pins workloads by node affinity; keep in sync with the hardware.
 k3s_node_labels:
   - kub62.local/memory=8g
+  - kub62.local/compute=efficient
   - kub62.local/otbr=true
   - kub62.local/home-assistant=true
