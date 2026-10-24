@@ -9,5 +9,7 @@
   tags: [kubelet]
 - name: Configure kernel cgroup settings
   ansible.builtin.import_tasks: cmdline.yaml
+  # cmdline.txt is Raspberry Pi only; other boards enable the memory cgroup by default.
+  when: ansible_facts['architecture'] == 'aarch64'
 - name: Apply pending reboot
   ansible.builtin.import_tasks: reboot.yaml

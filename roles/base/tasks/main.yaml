@@ -16,5 +16,7 @@
   ansible.builtin.import_tasks: packages.yaml
 - name: Update firmware settings
   ansible.builtin.import_tasks: eeprom.yaml
+  # Raspberry Pi only; every aarch64 node in the cluster is one.
+  when: ansible_facts['architecture'] == 'aarch64'
 - name: Apply pending reboot
   ansible.builtin.import_tasks: reboot.yaml

@@ -1,7 +1,9 @@
 ---
-- name: Install Longhorn dependencies
+- name: Install k3s and Longhorn dependencies
   ansible.builtin.apt:
     name:
+      # The join task pipes the k3s installer through curl; Raspberry Pi OS ships it, Debian does not.
+      - curl
       - open-iscsi
       - nfs-common
       - smartmontools

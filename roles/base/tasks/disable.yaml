@@ -10,11 +10,13 @@
     - dtparam=act_led_activelow=on
     - dtparam=audio=off
   register: disable_features
+  # config.txt exists on Raspberry Pis only.
+  when: ansible_facts['architecture'] == 'aarch64'
 
 - name: Flag reboot after boot config changes
   ansible.builtin.set_fact:
     reboot_needed: true
-  when: disable_features.results | selectattr('changed') | list | length > 0
+  when: disable_features is not skipped and disable_features.results | selectattr('changed') | list | length > 0
 
 - name: Disable unused services
   ansible.builtin.systemd:
