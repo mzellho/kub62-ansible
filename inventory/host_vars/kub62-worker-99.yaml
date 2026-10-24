@@ -3,6 +3,7 @@
 k3s_node_labels:
   - kub62.local/memory=8g
   - kub62.local/compute=fast
-# Powered off often: only workloads that tolerate this land here, without Longhorn data.
-k3s_node_taints:
-  - kub62.local/compute=fast:NoSchedule
+# Stands in for kub62-node-1 (with Longhorn data) while its fan is replaced. For on-demand compute later:
+# evacuate Longhorn first, then add the taint below back.
+# k3s_node_taints:
+#   - kub62.local/compute=fast:NoSchedule
