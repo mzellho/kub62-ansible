@@ -12,6 +12,10 @@
   ansible.builtin.import_tasks: disable.yaml
 - name: Tune kernel parameters
   ansible.builtin.import_tasks: sysctl.yaml
+- name: Keep swap in RAM
+  ansible.builtin.import_tasks: swap.yaml
+  # rpi-swap is Raspberry Pi OS only.
+  when: ansible_facts['architecture'] == 'aarch64'
 - name: Install base packages
   ansible.builtin.import_tasks: packages.yaml
 - name: Update firmware settings

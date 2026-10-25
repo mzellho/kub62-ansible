@@ -1,0 +1,37 @@
+---
+# Swap in zram only: rpi-swap's default also writes idle pages to /var/swap on the NVMe.
+# The generator reads this at boot, so the change applies with the next reboot.
+- name: Ensure the rpi-swap drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/rpi/swap.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Keep swap in zram only
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - roles/base/tasks/swap.yaml
+      [Main]
+      Mechanism=zram
+
+      [Zram]
+      FixedSizeMiB=2048
+    dest: /etc/rpi/swap.conf.d/50-kub62.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Read the zram writeback device
+  ansible.builtin.slurp:
+    src: /sys/block/zram0/backing_dev
+  register: base_zram_backing_dev
+  failed_when: false
+
+# Only once a reboot has detached it from zram.
+- name: Remove the writeback file
+  ansible.builtin.file:
+    path: /var/swap
+    state: absent
+  when: (base_zram_backing_dev.content | default('') | b64decode | trim) == 'none'
