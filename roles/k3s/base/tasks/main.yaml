@@ -4,6 +4,11 @@
 - name: Separate pod resolver from host resolver
   ansible.builtin.import_tasks: resolv-conf.yaml
   tags: [dns]
+- name: Restrict unauthenticated node services
+  ansible.builtin.import_tasks: firewall.yaml
+  tags: [firewall]
+- name: Keep NetworkManager off the CNI interfaces
+  ansible.builtin.import_tasks: networkmanager.yaml
 - name: Reserve node resources for k3s
   ansible.builtin.import_tasks: kubelet.yaml
   tags: [kubelet]

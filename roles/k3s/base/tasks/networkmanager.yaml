@@ -1,0 +1,19 @@
+---
+# NetworkManager only watches the CNI interfaces, but a restart of it drops cni0 and flannel.1;
+# leaving them unmanaged keeps it away from them. Applies with the next boot, never restart it.
+- name: Check for NetworkManager
+  ansible.builtin.stat:
+    path: /etc/NetworkManager/conf.d
+  register: k3s_networkmanager
+
+- name: Leave the CNI interfaces to k3s
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - roles/k3s/base/tasks/networkmanager.yaml
+      [keyfile]
+      unmanaged-devices=interface-name:cni0;interface-name:flannel*;interface-name:veth*
+    dest: /etc/NetworkManager/conf.d/90-kub62-cni.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: k3s_networkmanager.stat.exists
