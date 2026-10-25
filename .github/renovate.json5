@@ -1,0 +1,40 @@
+{
+  extends: [
+    'config:recommended',
+    ':semanticCommits',
+  ],
+  dependencyDashboardTitle: 'kub62-ansible Renovate Dashboard',
+  // Merging does not deploy: a bump only reaches the nodes with the next playbook run.
+  automerge: false,
+  minimumReleaseAge: '3 days',
+  customManagers: [
+    {
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^inventory/group_vars/.+\\.ya?ml$/',
+      ],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\w+: "?(?<currentValue>[^"\\s]+)"?',
+      ],
+    },
+  ],
+  packageRules: [
+    {
+      matchDepNames: [
+        'k3s-io/k3s',
+      ],
+      versioning: 'regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$',
+    },
+    // A k3s minor only once it is on the stable channel and checked against the cluster (E005).
+    {
+      matchDepNames: [
+        'k3s-io/k3s',
+      ],
+      matchUpdateTypes: [
+        'major',
+        'minor',
+      ],
+      dependencyDashboardApproval: true,
+    },
+  ],
+}

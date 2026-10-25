@@ -2,10 +2,15 @@
 # CLIs on the control-plane nodes for what Ansible and the GitOps repository deploy.
 # Bump a version here; the next run installs it next to the old one and repoints the symlink.
 clis_arch: arm64
+# renovate: datasource=github-releases depName=helm/helm
 helm_version: v4.3.0
+# renovate: datasource=github-releases depName=derailed/k9s
 k9s_version: v0.51.0
+# renovate: datasource=github-releases depName=vmware-tanzu/velero
 velero_version: v1.18.4
+# renovate: datasource=github-releases depName=cert-manager/cmctl
 cmctl_version: v2.6.1
+# renovate: datasource=github-releases depName=scaleway/scaleway-cli
 scw_version: v2.65.1
 # member: path of the binary inside the archive; without it the download is the binary itself.
 # completion: arguments that print the bash completion script.
