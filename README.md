@@ -104,6 +104,7 @@ your setup.
 | `ansible_user`                 | `all`        | SSH user on the Pis (e.g. `pi`)                                                                        |
 | `clone_label_prefix`           | `all`        | Partition label prefix for cloned media (e.g. `kub62`)                                                 |
 | `k3s_server_common_flags`      | `all`        | Common k3s server flags shared by all control-plane nodes                                              |
+| `host_firewall_sources`        | `all`        | Networks that may reach rpcbind and the metrics ports on the nodes (pod network and node subnet)       |
 | `k3s_etcd_s3_secret`           | `all`        | Secret in kube-system with the S3 target for etcd snapshots (Flux applies it); empty keeps them local        |
 | `k3s_token`                    | `all`        | Pre-shared secret used to join nodes to the cluster                                                    |
 | `k3s_url`                      | `all`        | API server URL of the primary control-plane (used by secondary nodes and workers)                      |
@@ -264,6 +265,7 @@ Applied to **all** nodes (control-plane, workers, and kiosk). It configures:
 - 🔇 Disables Bluetooth, onboard audio, ACT LED, and ModemManager
 - 📦 Package updates and cleanup
 - 🔧 Configures EEPROM boot order and runs EEPROM updates
+- 🧠 Keeps swap in zram only, without rpi-swap's writeback file on the NVMe (applies after a reboot)
 
 ## 💾 K3s Base Role
 
@@ -271,6 +273,9 @@ Applied to control-plane and worker nodes. It prepares the Pi for running [`k3s`
 
 - ⚙️ Adds `cgroup_memory=1 cgroup_enable=memory` kernel flags
 - 📦 Installs Longhorn dependencies
+- 🧱 Host firewall in its own nftables table: rpcbind and the metrics ports only from the pod network and the node
+  subnet, the OTBR web UI and REST API only from localhost on the node labelled `kub62.local/otbr=true`
+- 🔌 Leaves `cni0`, `flannel.1` and the veth interfaces unmanaged by NetworkManager (applies after a reboot)
 
 ## 🖥️ K3s Control-Plane Role
 
