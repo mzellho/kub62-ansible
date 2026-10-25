@@ -1,0 +1,75 @@
+---
+# Own nftables table next to the iptables-nft rules of k3s; nftables.service stays off,
+# its default config flushes the whole ruleset.
+- name: Install nftables
+  ansible.builtin.apt:
+    name: nftables
+    state: present
+
+- name: Ensure the firewall directory exists
+  ansible.builtin.file:
+    path: /etc/kub62
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy host firewall rules
+  ansible.builtin.copy:
+    content: |
+      #!/usr/sbin/nft -f
+      # Managed by Ansible - roles/k3s/base/tasks/firewall.yaml
+      table inet kub62_host
+      delete table inet kub62_host
+      table inet kub62_host {
+        chain input {
+          type filter hook input priority filter - 5; policy accept;
+          iif "lo" accept
+          ip saddr { {{ host_firewall_sources | join(', ') }} } tcp dport { {{ host_firewall_cluster_tcp | join(', ') }} } accept
+          ip saddr { {{ host_firewall_sources | join(', ') }} } udp dport { {{ host_firewall_cluster_udp | join(', ') }} } accept
+          tcp dport { {{ host_firewall_cluster_tcp | join(', ') }} } drop
+          udp dport { {{ host_firewall_cluster_udp | join(', ') }} } drop
+      {% if host_firewall_local_tcp | length > 0 %}
+          tcp dport { {{ host_firewall_local_tcp | join(', ') }} } drop
+      {% endif %}
+        }
+      }
+    dest: /etc/kub62/host-firewall.nft
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/nft -c -f %s
+  notify: Reload host firewall
+
+- name: Deploy host firewall unit
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible - roles/k3s/base/tasks/firewall.yaml
+      [Unit]
+      Description=kub62 host firewall
+      Wants=network-pre.target
+      Before=network-pre.target k3s.service k3s-agent.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/sbin/nft -f /etc/kub62/host-firewall.nft
+      ExecReload=/usr/sbin/nft -f /etc/kub62/host-firewall.nft
+      ExecStop=/usr/sbin/nft delete table inet kub62_host
+
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/kub62-host-firewall.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload host firewall
+
+- name: Enable host firewall
+  ansible.builtin.systemd_service:
+    name: kub62-host-firewall
+    enabled: true
+    state: started
+    daemon_reload: true
+  # The unit file does not exist yet in a check run.
+  ignore_errors: "{{ ansible_check_mode }}"

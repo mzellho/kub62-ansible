@@ -74,3 +74,10 @@
   changed_when: true
   when: k3s_installed.stat.exists | default(false)
   tags: always
+
+- name: Reload host firewall
+  ansible.builtin.systemd_service:
+    name: kub62-host-firewall
+    state: reloaded
+    daemon_reload: true
+  ignore_errors: "{{ ansible_check_mode }}"

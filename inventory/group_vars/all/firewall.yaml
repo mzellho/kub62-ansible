@@ -1,0 +1,8 @@
+---
+# Services without authentication on the node address (review3 F-01, F-23). Other ports stay open;
+# k3s and kube-proxy keep their own tables.
+# rpcbind, kube-vip metrics, etcd metrics, node-exporter: pods and nodes only.
+host_firewall_cluster_tcp: [111, 2112, 2381, 9100]
+host_firewall_cluster_udp: [111]
+# OTBR web UI and REST API: Home Assistant shares the host network and uses localhost.
+host_firewall_local_tcp: "{{ [7586, 8081] if 'kub62.local/otbr=true' in (k3s_node_labels | default([])) else [] }}"

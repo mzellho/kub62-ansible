@@ -33,6 +33,8 @@ kub62:
     timezone: Europe/Vienna
     k3s_server_common_flags: "--write-kubeconfig-mode=600 --disable traefik --disable servicelb --disable local-storage"
     k3s_pod_resolver: 192.168.30.1
+    # Pod network and node subnet; they may reach the metrics and rpcbind ports (group_vars/all/firewall.yaml).
+    host_firewall_sources: [10.42.0.0/16, 192.168.10.0/24]
     # Secret in kube-system with the S3 target; empty keeps snapshots local only.
     k3s_etcd_s3_secret: k3s-etcd-s3
     # Empty disables roles/k3s/control-plane/tasks/oidc.yaml.
@@ -41,10 +43,8 @@ kub62:
     k3s_oidc_username_claim: preferred_username
     k3s_oidc_groups_claim: groups
     k3s_oidc_prefix: "oidc:"
-    k3s_version: v1.36.5+k3s1
     # API virtual IP served by kube-vip; empty means the first server's address.
     k3s_vip: 192.168.10.5
-    kube_vip_version: v1.2.4
     kube_vip_interface: eth0
     # Plain here; encrypt it in the real inventory with ansible-vault (see README, "Secrets").
     k3s_token: 4711
