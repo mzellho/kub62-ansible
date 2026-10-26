@@ -26,7 +26,10 @@
   loop:
     - ModemManager
   register: disable_services_result
-  failed_when: false
+  # Absent on some images; any other error still fails.
+  failed_when:
+    - disable_services_result is failed
+    - "'Could not find the requested service' not in (disable_services_result.msg | default(''))"
 
 # NetworkManager would start it again via D-Bus activation; WiFi stays off.
 - name: Mask wpa_supplicant
@@ -35,3 +38,19 @@
     state: stopped
     enabled: false
     masked: true
+
+# The Imager's user-data keeps the first hostname and rewrites /etc/hosts with it on every boot. The
+# network is NetworkManager's own DHCP profile, so cloud-init has nothing left to do after the first boot.
+- name: Check for cloud-init
+  ansible.builtin.stat:
+    path: /etc/cloud
+  register: base_cloud_init
+
+- name: Disable cloud-init after the first boot
+  ansible.builtin.copy:
+    content: ""
+    dest: /etc/cloud/cloud-init.disabled
+    owner: root
+    group: root
+    mode: "0644"
+  when: base_cloud_init.stat.exists
