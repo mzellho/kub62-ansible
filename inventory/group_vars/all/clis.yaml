@@ -3,7 +3,7 @@
 # Bump a version here; the next run installs it next to the old one and repoints the symlink.
 clis_arch: arm64
 # renovate: datasource=github-releases depName=helm/helm
-helm_version: v4.3.0
+helm_version: v4.3.1
 # renovate: datasource=github-releases depName=derailed/k9s
 k9s_version: v0.51.0
 # renovate: datasource=github-releases depName=vmware-tanzu/velero
