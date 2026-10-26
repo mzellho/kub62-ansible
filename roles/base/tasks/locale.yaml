@@ -4,15 +4,12 @@
     name: "{{ locale }}"
     state: present
 
+# On Trixie /etc/default/locale is a symlink to /etc/locale.conf; file attributes would compare the link.
 - name: Set locale variables
   ansible.builtin.lineinfile:
     path: /etc/default/locale
     regexp: "^{{ item }}="
     line: "{{ item }}={{ locale }}"
-    create: true
-    owner: root
-    group: root
-    mode: "0644"
   loop:
     - LANG
     - LC_ALL
