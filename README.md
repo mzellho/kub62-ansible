@@ -88,7 +88,7 @@ age-keygen -o age.agekey
 grep '^# public key:' age.agekey
 ```
 
-If you use [`.sops.yaml`](.sops.yaml), make sure its recipient list contains the public key generated above.
+If your GitOps repository uses a `.sops.yaml`, make sure its recipient list contains the public key generated above.
 Then point `sops_key` in your inventory to the private key file path (for example `age.agekey`).
 
 ## ⚙️ Usage
@@ -121,7 +121,7 @@ your setup.
 | `flux_bootstrap`               | `host`       | If `true`, runs `flux bootstrap github` on that node                                                   |
 | `flux_branch`                  | `host`       | Git branch Flux should track                                                                           |
 | `flux_owner`                   | `host`       | GitHub user or org that owns the GitOps repository                                                     |
-| `flux_pat`                     | `host`       | GitHub personal access token used during bootstrap                                                     |
+| `flux_pat`                     | extra var    | GitHub personal access token for the bootstrap of an empty cluster; pass it with `-e`, do not store it   |
 | `flux_path`                    | `host`       | Path inside the repository where cluster manifests live                                                |
 | `flux_personal`                | `host`       | Set to `true` for personal (non-org) GitHub accounts                                                   |
 | `flux_repository`              | `host`       | GitHub repository name for Flux to bootstrap from                                                      |
@@ -146,7 +146,7 @@ your setup.
 
 Versions live in tracked files, so Renovate (`.github/renovate.json5`) keeps them current:
 `inventory/group_vars/all/versions.yaml` (`k3s_version`, `kube_vip_version`) and `inventory/group_vars/all/clis.yaml`
-(helm, k9s, velero, cmctl, scw). A k3s minor needs approval on the dependency dashboard first.
+(helm, k9s, velero, cmctl, scw, flux). A k3s minor needs approval on the dependency dashboard first.
 
 ### Secrets
 
@@ -208,7 +208,7 @@ Every run first picks the API host: the first control-plane host whose API answe
 | `cilium`             | Cilium CLI add-on                                      |
 | `sops`               | SOPS age secret                                        |
 | `flux`               | Flux CLI + bootstrap                                   |
-| `clis`               | helm, k9s, velero, cmctl and scw CLIs                  |
+| `clis`               | helm, k9s, velero, cmctl, scw and flux CLIs            |
 | `worker`             | Worker node k3s join                                   |
 | `dns`                | Pod resolver for kubelet and CoreDNS                   |
 | `firewall`           | Host firewall (`inet kub62_host`)                      |
@@ -317,6 +317,7 @@ Applied to **all** nodes (control-plane, workers, and kiosk). It configures:
 - 🏷️ Hostname
 - 🌍 Timezone and locale
 - 🔇 Disables Bluetooth, onboard audio, ACT LED, and ModemManager
+- ☁️ Disables cloud-init after the first boot, which would otherwise rewrite `/etc/hosts` with the Imager hostname
 - 📦 Upgrades all packages once on a new node; nodes in the cluster are patched with `kub62-node`
 - 🔧 Configures EEPROM boot order and runs EEPROM updates
 - 🧠 Keeps swap in zram only, without rpi-swap's writeback file on the NVMe (applies after a reboot)
@@ -364,15 +365,14 @@ your GitOps repository:
 
 Runs on control-plane nodes in the Control Plane Add-ons phase (when enabled via `flux_enabled: true` in inventory):
 
-- 📦 Installs the Flux CLI
-- ⌨️ Adds shell completion for `flux`
+- 📦 Uses the pinned Flux CLI from the CLIs add-on, which runs first
 - 🚀 Bootstraps Flux controllers into the cluster when `flux_bootstrap: true` (only runs on the designated node)
 - 🩺 Runs `flux check` on that node afterwards, also when Flux was already there
 
 ### 🧰 CLIs Add-on
 
 Runs on control-plane nodes in the Control Plane Add-ons phase. It installs the CLIs listed in
-`inventory/group_vars/all/clis.yaml` (`helm`, `k9s`, `velero`, `cmctl`, `scw`):
+`inventory/group_vars/all/clis.yaml` (`helm`, `k9s`, `velero`, `cmctl`, `scw`, `flux`):
 
 - 📌 Pins each version and verifies the download against the release checksum
 - 📂 Keeps every version in `/opt/clis/<name>/<version>` and links the current one into `/usr/local/bin`

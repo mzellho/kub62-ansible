@@ -1,4 +1,6 @@
 ---
+# Copy to inventory/hosts.yaml (gitignored) and adapt. Node labels and taints go to
+# inventory/host_vars/<host>.yaml, versions to inventory/group_vars/all/versions.yaml.
 kub62:
   hosts:
     node-1:
@@ -8,21 +10,18 @@ kub62:
       ansible_host: 192.168.10.12
       clone_destination: nvme
     node-3:
-      ansible_host: 192.168.10.21
+      ansible_host: 192.168.10.13
       clone_destination: nvme
-      k3s_node_labels:
-        - kub62.local/memory=8g
-        - kub62.local/otbr=true
     node-4:
-      ansible_host: 192.168.10.22
+      ansible_host: 192.168.10.14
       clone_destination: nvme
-      k3s_node_labels:
-        - kub62.local/memory=4g
+    # An amd64 worker on Debian: its own user, the Raspberry Pi steps are skipped.
+    worker-1:
+      ansible_host: 192.168.10.21
+      ansible_user: kub
     node-5:
       ansible_host: 192.168.10.31
-      bodgestr_device_usb_id: 1324:5678
       clone_destination: usb
-      kiosk_urls: "https://example.com/1 https://example.com/2 https://example.com/3"
   vars:
     ansible_python_interpreter: /usr/bin/python3
     ansible_ssh_private_key_file: "{{ lookup('env','HOME') }}/.ssh/id_ed25519"
@@ -32,13 +31,14 @@ kub62:
     locale: de_AT.UTF-8
     timezone: Europe/Vienna
     k3s_server_common_flags: "--write-kubeconfig-mode=600 --disable traefik --disable servicelb --disable local-storage"
-    k3s_pod_resolver: 192.168.30.1
+    # Single resolver for pods and CoreDNS, e.g. the router.
+    k3s_pod_resolver: 192.168.10.1
     # Pod network and node subnet; they may reach the metrics and rpcbind ports (group_vars/all/firewall.yaml).
     host_firewall_sources: [10.42.0.0/16, 192.168.10.0/24]
     # Secret in kube-system with the S3 target; empty keeps snapshots local only.
     k3s_etcd_s3_secret: k3s-etcd-s3
     # Empty disables roles/k3s/control-plane/tasks/oidc.yaml.
-    k3s_oidc_issuer_url: "https://auth.kub62.zellweb.net/application/o/headlamp/"
+    k3s_oidc_issuer_url: "https://auth.example.com/application/o/headlamp/"
     k3s_oidc_client_id: headlamp
     k3s_oidc_username_claim: preferred_username
     k3s_oidc_groups_claim: groups
@@ -59,7 +59,7 @@ kub62:
           flux_path: some/repo/path
           flux_personal: true
           flux_repository: my-gitops-flux
-          flux_pat: github_pat_abcde
+          # flux_pat is only needed to bootstrap an empty cluster: pass it with -e flux_pat=... instead of storing it.
         node-2:
           flux_bootstrap: false
         node-3:
@@ -70,6 +70,10 @@ kub62:
     kiosk:
       hosts:
         node-5:
+      vars:
+        bodgestr_device_usb_id: "1324:5678"
+        kiosk_urls: "https://example.com/1 https://example.com/2 https://example.com/3"
     worker:
       hosts:
         node-4:
+        worker-1:
