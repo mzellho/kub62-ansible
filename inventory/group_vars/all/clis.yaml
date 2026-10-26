@@ -11,7 +11,7 @@ velero_version: v1.18.4
 # renovate: datasource=github-releases depName=cert-manager/cmctl
 cmctl_version: v2.6.1
 # renovate: datasource=github-releases depName=scaleway/scaleway-cli
-scw_version: v2.65.1
+scw_version: v2.65.2
 # member: path of the binary inside the archive; without it the download is the binary itself.
 # completion: arguments that print the bash completion script.
 clis:
