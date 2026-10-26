@@ -44,10 +44,11 @@
       tags: [cilium]
     - role: ../roles/k3s/control-plane/addons/sops
       tags: [sops]
-    - role: ../roles/k3s/control-plane/addons/flux
-      tags: [flux]
+    # Before flux: the bootstrap needs the pinned Flux CLI.
     - role: ../roles/k3s/control-plane/addons/clis
       tags: [clis]
+    - role: ../roles/k3s/control-plane/addons/flux
+      tags: [flux]
 
 - name: Configure worker nodes
   hosts: worker

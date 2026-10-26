@@ -12,6 +12,8 @@ velero_version: v1.18.4
 cmctl_version: v2.6.1
 # renovate: datasource=github-releases depName=scaleway/scaleway-cli
 scw_version: v2.65.2
+# renovate: datasource=github-releases depName=fluxcd/flux2
+flux_version: v2.9.6
 # member: path of the binary inside the archive; without it the download is the binary itself.
 # completion: arguments that print the bash completion script.
 clis:
@@ -43,3 +45,9 @@ clis:
     url: "https://github.com/scaleway/scaleway-cli/releases/download/{{ scw_version }}/scaleway-cli_{{ scw_version[1:] }}_linux_{{ clis_arch }}"
     checksum: "sha256:https://github.com/scaleway/scaleway-cli/releases/download/{{ scw_version }}/SHA256SUMS"
     completion: [autocomplete, script, shell=bash]
+  - name: flux
+    version: "{{ flux_version }}"
+    url: "https://github.com/fluxcd/flux2/releases/download/{{ flux_version }}/flux_{{ flux_version[1:] }}_linux_{{ clis_arch }}.tar.gz"
+    checksum: "sha256:https://github.com/fluxcd/flux2/releases/download/{{ flux_version }}/flux_{{ flux_version[1:] }}_checksums.txt"
+    member: flux
+    completion: [completion, bash]

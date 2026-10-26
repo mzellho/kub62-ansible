@@ -16,6 +16,8 @@
     checksum: "{{ item.checksum }}"
     mode: "0755"
   loop: "{{ clis | rejectattr('member', 'defined') }}"
+  # A new version directory does not exist yet in a dry run.
+  ignore_errors: "{{ ansible_check_mode }}"
   loop_control:
     label: "{{ item.name }} {{ item.version }}"
 
@@ -26,6 +28,8 @@
     checksum: "{{ item.checksum }}"
     mode: "0644"
   loop: "{{ clis | selectattr('member', 'defined') }}"
+  # A new version directory does not exist yet in a dry run.
+  ignore_errors: "{{ ansible_check_mode }}"
   loop_control:
     label: "{{ item.name }} {{ item.version }}"
 
@@ -38,6 +42,7 @@
     extra_opts: ["--strip-components={{ item.member.split('/') | length - 1 }}"]
     creates: "/opt/clis/{{ item.name }}/{{ item.version }}/{{ item.name }}"
   loop: "{{ clis | selectattr('member', 'defined') }}"
+  ignore_errors: "{{ ansible_check_mode }}"
   loop_control:
     label: "{{ item.name }} {{ item.version }}"
 

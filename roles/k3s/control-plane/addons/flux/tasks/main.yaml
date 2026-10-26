@@ -1,7 +1,4 @@
 ---
-- name: Configure Flux CLI
-  ansible.builtin.import_tasks: install.yaml
-  when: flux_enabled | default(false) | bool
 - name: Bootstrap GitOps components
   ansible.builtin.import_tasks: bootstrap.yaml
   when: flux_enabled | default(false) | bool
