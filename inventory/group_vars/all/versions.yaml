@@ -2,6 +2,6 @@
 # Tracked here instead of hosts.yaml so Renovate sees them. kube-vip lands with the next run of
 # playbooks/kub62.yaml, k3s with playbooks/maintenance.yaml -e maintenance_action=k3s-upgrade.
 # renovate: datasource=github-releases depName=k3s-io/k3s
-k3s_version: v1.36.5+k3s1
+k3s_version: v1.37.1+k3s1
 # renovate: datasource=docker depName=ghcr.io/kube-vip/kube-vip
 kube_vip_version: v1.3.1
