@@ -271,7 +271,7 @@ Applied to **all** nodes (control-plane, workers, and kiosk). It configures:
 
 Applied to control-plane and worker nodes. It prepares the Pi for running [`k3s`](https://k3s.io/):
 
-- ⚙️ Adds `cgroup_memory=1 cgroup_enable=memory` kernel flags
+- ⚙️ Adds `cgroup_memory=1 cgroup_enable=memory psi=1` kernel flags (PSI is off by default in the Raspberry Pi kernel)
 - 📦 Installs Longhorn dependencies
 - 🧱 Host firewall in its own nftables table: rpcbind and the metrics ports only from the pod network and the node
   subnet, the OTBR web UI and REST API only from localhost on the node labelled `kub62.local/otbr=true`
