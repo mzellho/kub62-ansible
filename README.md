@@ -6,7 +6,7 @@ control‑plane nodes, worker nodes, and optionally a kiosk node for displaying 
 everything from system configuration to cluster bootstrapping with GitOps support:
 
 - 🛠️ Base system configuration (locales, timezone, hostname, disabled peripherals)
-- 📦 Package updates and cleanup
+- 📦 Package updates on new nodes; nodes in the cluster are patched and rebooted through `kub62-node`
 - 💾 Optional NVMe/USB boot via [`rpi-clone`](https://github.com/geerlingguy/rpi-clone) with EEPROM updates
 - ⚙️ Kernel cgroup flags for container support
 - 🐧 Installation of [`k3s`](https://k3s.io/) with optional multi-node control-plane support
@@ -31,6 +31,8 @@ Before running the playbook, make sure you have:
 - 🗂️ A valid inventory file (`inventory/hosts.yaml`) with IP addresses and group names
 - 🍓 [Raspberry Pi OS](https://www.raspberrypi.com/software/operating-systems/) already installed and reachable via
   network
+- 🐧 Workers may also run Debian on amd64; the Raspberry Pi steps (config.txt, cmdline.txt, EEPROM, swap) are skipped
+  there
 - 🐍 Python 3 installed on each [Raspberry Pi](https://www.raspberrypi.com) (usually pre-installed
   with [Raspberry Pi OS](https://www.raspberrypi.com/software/operating-systems/))
 - 🌐 Internet access on the Pis to fetch [`k3s`](https://k3s.io/) and updates
@@ -126,6 +128,25 @@ your setup.
 | `k3s_exec_flags`               | `host/group` | Full k3s installer flags for each node (can also be defined as group var, e.g. workers = `agent`)      |
 | `kiosk_urls`                   | `host`       | Space-separated URLs for Chromium to open in kiosk mode                                                |
 | `sops_key`                     | `host`       | Path to the local age private key file used on the first control-plane to create the `sops-age` secret |
+| `k3s_vip`                      | `all`        | API virtual IP served by kube-vip; empty uses the first server's address                              |
+| `kube_vip_interface`           | `all`        | Interface on the servers that carries the VIP (e.g. `eth0`)                                            |
+| `k3s_pod_resolver`             | `all`        | Single DNS server for pods and CoreDNS (e.g. the router); empty keeps the host resolver                |
+| `k3s_oidc_issuer_url`          | `all`        | OIDC issuer the API server trusts (exact `iss`, trailing slash included); empty disables OIDC          |
+| `k3s_oidc_client_id`           | `all`        | Expected audience of the OIDC tokens                                                                   |
+| `k3s_oidc_username_claim`      | `all`        | Token claim used as the Kubernetes user name                                                           |
+| `k3s_oidc_groups_claim`        | `all`        | Token claim used as the Kubernetes groups                                                              |
+| `k3s_oidc_prefix`              | `all`        | Prefix for OIDC users and groups (e.g. `oidc:`), keeps them apart from `system:`                       |
+| `k3s_node_labels`              | `host`       | Node labels (`key=value`), reconciled by the labels role; kept in `inventory/host_vars/`               |
+| `k3s_node_taints`              | `host`       | Node taints (`key=value:Effect`), reconciled by the labels role                                        |
+| `k3s_coredns_replicas`         | `all`        | CoreDNS replicas (default: `2`)                                                                        |
+| `k3s_embedded_etcd`            | `all`        | `true` moves a SQLite init server to embedded etcd (set in `group_vars/all`)                           |
+| `k3s_init_server`              | `all`        | Server that initialises the cluster (default: first `control_plane` host)                              |
+| `k3s_api_host`                 | `all`        | Server for delegated `kubectl` calls (default: the first server whose API answers)                     |
+| `kub62_node_ignore`            | extra var    | Nodes down or cordoned on purpose: `kub62-node` accepts them, `maintenance.yaml` skips them            |
+
+Versions live in tracked files, so Renovate (`.github/renovate.json5`) keeps them current:
+`inventory/group_vars/all/versions.yaml` (`k3s_version`, `kube_vip_version`) and `inventory/group_vars/all/clis.yaml`
+(helm, k9s, velero, cmctl, scw). A k3s minor needs approval on the dependency dashboard first.
 
 ### Secrets
 
@@ -172,57 +193,89 @@ ansible-playbook -l node-4 --tags base playbooks/kub62.yaml -v
 ansible-playbook playbooks/kub62.yaml --start-at-task "Install Flux CLI" -v
 ```
 
+Every run first picks the API host: the first control-plane host whose API answers on port 6443
+(`playbooks/api-host.yaml`). A server that is down needs no override, also with `--limit`.
+
 #### Available Tags
 
-| Tag              | Scope                                                  |
-|------------------|--------------------------------------------------------|
-| `ssh`            | SSH host-key trust (runs `always`)                     |
-| `base`           | Base OS setup on all nodes                             |
-| `k3s`            | k3s install (control-plane + workers)                  |
-| `control-plane`  | Control-plane k3s setup                                |
-| `addons`         | All control-plane add-ons                              |
-| `cilium`         | Cilium CLI add-on                                      |
-| `sops`           | SOPS age secret                                        |
-| `flux`           | Flux CLI + bootstrap                                   |
-| `clis`           | helm, k9s, velero, cmctl and scw CLIs                  |
-| `worker`         | Worker node k3s join                                   |
-| `oidc`           | API server OIDC trust                                  |
-| `kube-vip`       | API virtual IP                                         |
-| `labels`         | Node labels from the inventory                         |
-| `kiosk`          | Kiosk display setup                                    |
-| `upgrade`        | k3s binary upgrade to `k3s_version` (`never`, opt-in)  |
-| `etcd`           | Move the init server from SQLite to embedded etcd      |
-| `maintenance`    | `kub62-node` tool and its service account              |
+| Tag                  | Scope                                                  |
+|----------------------|--------------------------------------------------------|
+| `ssh`                | SSH host-key trust (runs `always`)                     |
+| `base`               | Base OS setup on all nodes                             |
+| `k3s`                | k3s install (control-plane + workers)                  |
+| `control-plane`      | Control-plane k3s setup                                |
+| `addons`             | All control-plane add-ons                              |
+| `cilium`             | Cilium CLI add-on                                      |
+| `sops`               | SOPS age secret                                        |
+| `flux`               | Flux CLI + bootstrap                                   |
+| `clis`               | helm, k9s, velero, cmctl and scw CLIs                  |
+| `worker`             | Worker node k3s join                                   |
+| `dns`                | Pod resolver for kubelet and CoreDNS                   |
+| `firewall`           | Host firewall (`inet kub62_host`)                      |
+| `kubelet`            | Kubelet reservations and kernel settings               |
+| `secrets-encryption` | Secrets encryption at rest                             |
+| `oidc`               | API server OIDC trust                                  |
+| `apiserver-policies` | Pod Security defaults and the API audit log            |
+| `leader-election`    | Longer leader leases for the embedded controllers      |
+| `etcd`               | Move the init server from SQLite to embedded etcd      |
+| `etcd-s3`            | Off-site etcd snapshots to S3                          |
+| `etcd-metrics`       | etcd metrics on port 2381                              |
+| `coredns`            | CoreDNS replica count                                  |
+| `kube-vip`           | API virtual IP                                         |
+| `labels`             | Node labels and taints from the inventory              |
+| `kiosk`              | Kiosk display setup                                    |
+| `maintenance`        | `kub62-node` tool and its service account              |
 
 #### Rolling Maintenance
 
-The base play runs one node at a time. When a node needs a reboot it is drained first and uncordoned once it is
-`Ready` again.
+`playbooks/kub62.yaml` only configures: it never patches or reboots a node that is in the cluster. A change that needs
+a reboot (kernel command line, swap, EEPROM) leaves `/var/run/reboot-required` on the node. Patching, reboots and k3s
+upgrades go through `kub62-node` on each node; `playbooks/maintenance.yaml` runs it one node at a time and waits until
+the node is `Ready` and every Longhorn volume is healthy again before it moves on. Workers go first, for a k3s upgrade
+the servers.
 
 ```bash
 # 📦 Update packages on every node, rebooting only where needed
-ansible-playbook --tags base playbooks/kub62.yaml
+ansible-playbook playbooks/maintenance.yaml -e maintenance_action=update
 
-# 🔁 Same, but reboot every node
-ansible-playbook --tags base -e base_force_reboot=true playbooks/kub62.yaml
+# 🔁 Reboot the nodes that wait for it (packages, kernel command line, swap)
+ansible-playbook playbooks/maintenance.yaml -e maintenance_action=reboot-if-required
 
-# ⬆️ Upgrade k3s to k3s_version, control plane first
-ansible-playbook --tags upgrade playbooks/kub62.yaml
+# 🔁 Reboot every node
+ansible-playbook playbooks/maintenance.yaml -e maintenance_action=reboot
+
+# ⬆️ Upgrade k3s to k3s_version, servers first
+ansible-playbook playbooks/maintenance.yaml -e maintenance_action=k3s-upgrade
+
+# 🚧 A node that is down on purpose: skip it and accept it in the checks
+ansible-playbook playbooks/maintenance.yaml -e '{"maintenance_action": "reboot", "kub62_node_ignore": ["kub62-node-1"]}'
 ```
+
+Before a server restarts, the play checks that its kube-vip manifest is at `kube_vip_version`: k3s applies its own copy
+on every start, and an old one would roll kube-vip back. Run `playbooks/kub62.yaml` on that server first.
 
 #### Maintaining a Single Node
 
-Every k3s node carries `kub62-node`, which runs as root via sudo and talks to the API with a dedicated, narrowly scoped
-service account. Before draining it checks that all other nodes are `Ready`, none is cordoned, Longhorn is healthy
-and the etcd quorum survives; after a reboot or shutdown a systemd unit uncordons the node once it is `Ready` again.
+Every k3s node carries `kub62-node`, which runs as root via sudo and talks to the API with a dedicated service account.
+Before it drains a node it checks that all other nodes are `Ready` and none is cordoned, that Longhorn is healthy, that
+the pods fit on the remaining nodes (memory requests against free allocatable memory) and that the etcd quorum survives.
+A server hands over the etcd leadership and the API VIP before k3s stops. After a reboot or shutdown a systemd unit
+uncordons the node once it is `Ready` again.
 
 ```bash
-kub62-node status                   # node, cluster and package state
-kub62-node update                   # apt upgrade, drained reboot only if required
-kub62-node dist-upgrade             # apt full-upgrade, drained reboot only if required
-kub62-node k3s-upgrade v1.36.5+k3s1 # then update k3s_version in the inventory
-kub62-node reboot | shutdown        # drain first, uncordon automatically afterwards
+kub62-node status                     # node, cluster and package state, pending reboot
+kub62-node check                      # the safety checks only, nothing changes
+kub62-node update                     # apt upgrade, drained reboot only if required
+kub62-node dist-upgrade               # apt full-upgrade, drained reboot only if required
+kub62-node reboot-if-required         # drained reboot if /var/run/reboot-required exists
+kub62-node reboot | shutdown          # drain first, uncordon automatically afterwards
+kub62-node shutdown --stay-cordoned   # e.g. for a repair: stays cordoned after the next boot
+kub62-node restart-k3s                # restart k3s in place, no drain (the playbook's handler uses it)
+kub62-node k3s-upgrade v1.36.5+k3s1   # then set k3s_version in group_vars/all/versions.yaml
+kub62-node --ignore-node kub62-node-1 reboot   # accept a node that is down on purpose
 ```
+
+`--ignore-node` keeps every other check on; `--force` skips all of them and is the last resort.
 
 #### Growing to Several Servers
 
@@ -236,7 +289,8 @@ ansible-playbook -l control_plane --tags etcd -e k3s_embedded_etcd=true playbook
 
 Then set `k3s_embedded_etcd: true` in the inventory. To rebuild the first server, point `k3s_init_server` at another
 running server for the duration, so the rebuilt host joins instead of initialising a new cluster.
-Pass it with `-e k3s_init_server=<other-server>`: `group_vars/all` defines it and beats the `vars` in `hosts.yaml`.
+Pass it with `-e k3s_init_server=<other-server> -l <rebuilt host>`: `group_vars/all` defines it and beats the `vars` in
+`hosts.yaml`.
 
 #### Bootstrapping From Scratch
 
@@ -263,9 +317,10 @@ Applied to **all** nodes (control-plane, workers, and kiosk). It configures:
 - 🏷️ Hostname
 - 🌍 Timezone and locale
 - 🔇 Disables Bluetooth, onboard audio, ACT LED, and ModemManager
-- 📦 Package updates and cleanup
+- 📦 Upgrades all packages once on a new node; nodes in the cluster are patched with `kub62-node`
 - 🔧 Configures EEPROM boot order and runs EEPROM updates
 - 🧠 Keeps swap in zram only, without rpi-swap's writeback file on the NVMe (applies after a reboot)
+- 🔁 Reboots a node only before it joins the cluster; afterwards it leaves `/var/run/reboot-required` for `kub62-node`
 
 ## 💾 K3s Base Role
 
@@ -276,6 +331,8 @@ Applied to control-plane and worker nodes. It prepares the Pi for running [`k3s`
 - 🧱 Host firewall in its own nftables table: rpcbind and the metrics ports only from the pod network and the node
   subnet, the OTBR web UI and REST API only from localhost on the node labelled `kub62.local/otbr=true`
 - 🔌 Leaves `cni0`, `flannel.1` and the veth interfaces unmanaged by NetworkManager (applies after a reboot)
+- 🧮 Reserves CPU and memory for k3s and the OS, sets hard eviction thresholds and a PID limit per pod
+- 🧭 Points kubelet and CoreDNS at `k3s_pod_resolver`
 
 ## 🖥️ K3s Control-Plane Role
 
@@ -284,6 +341,12 @@ Applied to control-plane nodes. It installs and configures [`k3s`](https://k3s.i
 - 🔧 Initializes the first control-plane with `--cluster-init`
 - 🤝 Joins additional control-planes via the established cluster token
 - 📝 Configures kubeconfig access and permissions
+- 🔒 Encrypts Secrets at rest
+- 🪪 Trusts an OIDC issuer for API access (`k3s_oidc_*`)
+- 🛡️ Pod Security defaults (`baseline` enforced, `restricted` audited and warned) and an API audit log
+- ⏱️ Gives the embedded controllers longer leader-election leases
+- 📈 Exposes etcd metrics on port 2381 and copies the scheduled etcd snapshots to S3 (`k3s_etcd_s3_secret`)
+- 🌐 Runs CoreDNS with two replicas and serves the API on a virtual IP via kube-vip (`k3s_vip`)
 - 🧩 Runs control-plane add-ons in a dedicated follow-up phase
 
 ### 🌐 Cilium Add-on
@@ -329,6 +392,19 @@ Applied to worker nodes. It installs [`k3s`](https://k3s.io/) agents:
 
 - 🤖 Joins workers to the control-plane cluster
 - 🔌 Uses secure tokens from control-plane for authentication
+- 🔁 Keeps the agent pointed at the registration address (`k3s_url`)
+
+## 🏷️ Labels Role
+
+Applied once per run against the API. It reconciles `k3s_node_labels`, `k3s_node_taints` and the role labels
+(`--node-label` only applies at registration). Labels and taints removed from the inventory stay on the node.
+
+## 🧰 Maintenance Role
+
+Applied to control-plane and worker nodes. It installs `kub62-node` (see "Maintaining a Single Node"), its boot-time
+uncordon unit and `etcdctl` on the servers, plus a service account for draining: it may evict and delete pods, patch
+nodes and read Longhorn volumes and leases cluster-wide. Its token is long-lived on purpose, because the tool runs on
+the hosts where no projected token can be renewed, and it sits on every node.
 
 ## 🖥️ Kiosk Role
 
