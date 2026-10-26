@@ -2,3 +2,4 @@
 inventory/hosts.yaml
 .vaultpass
 age.agekey
+status.md
