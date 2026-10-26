@@ -1,0 +1,5 @@
+---
+# Nodes that are down or cordoned on purpose; kub62-node accepts them (--ignore-node) and
+# playbooks/maintenance.yaml leaves them out. Pass e.g. -e '{"kub62_node_ignore": ["kub62-node-1"]}'.
+kub62_node_ignore: []
+kub62_node_flags: "{{ kub62_node_ignore | map('regex_replace', '^(.+)$', '--ignore-node \\1') | join(' ') }}"

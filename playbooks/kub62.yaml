@@ -14,6 +14,9 @@
       failed_when: false
       changed_when: false
 
+- name: Pick the API host
+  ansible.builtin.import_playbook: api-host.yaml
+
 - name: Prepare all cluster nodes
   hosts: all
   become: true
@@ -75,19 +78,3 @@
   tags: [kiosk]
   roles:
     - ../roles/kiosk
-
-- name: Upgrade k3s on the control plane
-  hosts: control_plane
-  become: true
-  serial: 1
-  tags: [never, upgrade]
-  roles:
-    - ../roles/k3s/upgrade
-
-- name: Upgrade k3s on the workers
-  hosts: worker
-  become: true
-  serial: 1
-  tags: [never, upgrade]
-  roles:
-    - ../roles/k3s/upgrade

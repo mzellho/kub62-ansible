@@ -1,7 +1,14 @@
 ---
+# A new node is brought up to date once; nodes in the cluster are patched with kub62-node update.
+- name: Check whether k3s runs on the node
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: base_packages_k3s
+
 - name: Update apt cache
   ansible.builtin.apt:
     update_cache: true
+    cache_valid_time: 3600
 
 - name: Upgrade all packages
   ansible.builtin.apt:
@@ -9,8 +16,9 @@
     autoremove: true
     autoclean: true
   register: apt_upgrade
+  when: not base_packages_k3s.stat.exists
 
 - name: Mark reboot needed if packages were upgraded # noqa: no-handler
   ansible.builtin.set_fact:
     reboot_needed: true
-  when: apt_upgrade.changed
+  when: apt_upgrade is changed

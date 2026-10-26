@@ -1,66 +1,21 @@
 ---
-# kube-vip renews its lease through the local API only: a restart on the VIP holder would leave the VIP
-# on a dead API server until the lease runs out (review3 F-82). The label keeps kube-vip off this node.
-- name: Read the API VIP holder
-  ansible.builtin.command:
-    argv: [/usr/local/bin/k3s, kubectl, -n, kube-system, get, lease, plndr-cp-lock, -o, "jsonpath={.spec.holderIdentity}"]
-  register: k3s_vip_holder
-  changed_when: false
-  failed_when: false
-  when:
-    - k3s_installed.stat.exists | default(false)
-    - inventory_hostname in (groups['control_plane'] | default([]))
-  listen: Restart k3s
-  tags: always
-
-- name: Hand the API VIP to another server
-  ansible.builtin.command:
-    argv: [/usr/local/bin/k3s, kubectl, label, node, "{{ inventory_hostname }}", kub62.io/vip-release=true, --overwrite]
-  changed_when: true
-  when: (k3s_vip_holder.stdout | default('')) == inventory_hostname
-  listen: Restart k3s
-  tags: always
-
-- name: Wait for another server to hold the API VIP
-  ansible.builtin.command:
-    argv: [/usr/local/bin/k3s, kubectl, -n, kube-system, get, lease, plndr-cp-lock, -o, "jsonpath={.spec.holderIdentity}"]
-  register: k3s_vip_new_holder
-  until: k3s_vip_new_holder.stdout not in ['', inventory_hostname]
-  retries: 30
-  delay: 2
-  changed_when: false
-  when: (k3s_vip_holder.stdout | default('')) == inventory_hostname
-  listen: Restart k3s
-  tags: always
-
-# Skipped on fresh installs: k3s reads the config on its first start.
+# kub62-node checks etcd and hands over the etcd leadership and the API VIP before it restarts k3s
+# (review3 F-82). Skipped on fresh installs: k3s reads the config on its first start.
 - name: Restart k3s
-  ansible.builtin.systemd:
-    name: "{{ 'k3s' if inventory_hostname in (groups['control_plane'] | default([])) else 'k3s-agent' }}"
-    state: restarted
-    daemon_reload: true
+  ansible.builtin.shell: |
+    set -o pipefail
+    if /usr/local/bin/kub62-node --help 2>/dev/null | grep -q restart-k3s; then
+      /usr/local/bin/kub62-node -y {{ kub62_node_flags }} restart-k3s
+    else
+      # First run after an upgrade of this repository: the old kub62-node has no restart-k3s yet.
+      systemctl daemon-reload
+      systemctl restart {{ 'k3s' if inventory_hostname in (groups['control_plane'] | default([])) else 'k3s-agent' }}
+    fi
+  args:
+    executable: /bin/bash
+  changed_when: true
   when: k3s_installed.stat.exists | default(false)
   # Handlers inherit play tags; without always, --tags dns would skip the restart.
-  tags: always
-
-- name: Wait for the node to be Ready again
-  ansible.builtin.command:
-    argv: [/usr/local/bin/k3s, kubectl, get, node, "{{ inventory_hostname }}", -o, "jsonpath={.status.conditions[?(@.type==\"Ready\")].status}"]
-  register: k3s_node_ready
-  until: k3s_node_ready.stdout == "True"
-  retries: 60
-  delay: 5
-  changed_when: false
-  when: (k3s_vip_holder.stdout | default("")) == inventory_hostname
-  listen: Restart k3s
-  tags: always
-
-- name: Let kube-vip back onto the node
-  ansible.builtin.command:
-    argv: [/usr/local/bin/k3s, kubectl, label, node, "{{ inventory_hostname }}", kub62.io/vip-release-]
-  changed_when: true
-  when: (k3s_vip_holder.stdout | default("")) == inventory_hostname
-  listen: Restart k3s
   tags: always
 
 - name: Restart CoreDNS

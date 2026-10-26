@@ -1,69 +1,44 @@
 ---
+# A node in the cluster only gets /var/run/reboot-required: kub62-node reboots it with its checks
+# (kub62-node reboot-if-required, or playbooks/maintenance.yaml). A node without k3s reboots right away.
 - name: Decide whether to reboot
   ansible.builtin.set_fact:
-    base_reboot: "{{ (reboot_needed | default(false) | bool) or (base_force_reboot | default(false) | bool) }}"
+    base_reboot: "{{ reboot_needed | default(false) | bool }}"
 
-- name: Check whether the node is part of the cluster
-  ansible.builtin.command:
-    argv: [/usr/local/bin/k3s, kubectl, get, node, "{{ inventory_hostname }}", --no-headers]
-  delegate_to: "{{ k3s_api_host }}"
-  register: base_cluster_node
-  changed_when: false
-  failed_when: false
-  check_mode: false
+- name: Check whether k3s runs on the node
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: base_reboot_k3s
+  when: base_reboot | bool
+
+- name: Mark the reboot for kub62-node
+  ansible.builtin.copy:
+    content: "kub62-ansible\n"
+    dest: /var/run/reboot-required
+    owner: root
+    group: root
+    mode: "0644"
   when:
     - base_reboot | bool
-    - inventory_hostname in groups.get('control_plane', []) + groups.get('worker', [])
+    - base_reboot_k3s.stat.exists
 
-- name: Drain node before reboot
-  ansible.builtin.command:
-    argv:
-      - /usr/local/bin/k3s
-      - kubectl
-      - drain
-      - "{{ inventory_hostname }}"
-      - --ignore-daemonsets
-      - --delete-emptydir-data
-      - --timeout=900s
-  delegate_to: "{{ k3s_api_host }}"
-  changed_when: true
-  when: base_cluster_node.rc | default(1) == 0
+- name: Report the pending reboot
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }} needs a reboot: kub62-node reboot-if-required, or playbooks/maintenance.yaml -e maintenance_action=reboot-if-required"
+  when:
+    - base_reboot | bool
+    - base_reboot_k3s.stat.exists
 
-- name: Reboot system if any change requires it
+- name: Reboot a node outside the cluster
   ansible.builtin.reboot:
     msg: "Reboot after setup of {{ inventory_hostname }}"
     connect_timeout: 10
     reboot_timeout: 1200
     post_reboot_delay: 10
-  register: reboot_result
-  when: base_reboot | bool
-
-- name: Wait for node to become Ready
-  ansible.builtin.command:
-    argv:
-      - /usr/local/bin/k3s
-      - kubectl
-      - get
-      - node
-      - "{{ inventory_hostname }}"
-      - -o
-      - "jsonpath={.status.conditions[?(@.type=='Ready')].status}"
-  delegate_to: "{{ k3s_api_host }}"
-  register: base_node_ready
-  until: base_node_ready.rc == 0 and base_node_ready.stdout == 'True'
-  retries: 60
-  delay: 10
-  changed_when: false
-  when: base_cluster_node.rc | default(1) == 0
-
-- name: Uncordon node after reboot
-  ansible.builtin.command:
-    argv: [/usr/local/bin/k3s, kubectl, uncordon, "{{ inventory_hostname }}"]
-  delegate_to: "{{ k3s_api_host }}"
-  changed_when: true
-  when: base_cluster_node.rc | default(1) == 0
+  when:
+    - base_reboot | bool
+    - not base_reboot_k3s.stat.exists
 
 - name: Reset reboot flag
   ansible.builtin.set_fact:
     reboot_needed: false
-  when: reboot_result is not skipped

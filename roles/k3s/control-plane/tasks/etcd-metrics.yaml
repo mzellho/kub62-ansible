@@ -1,10 +1,5 @@
 ---
-# etcd metrics on the node address (port 2381) for Prometheus; without them a lost quorum raises no alert.
-- name: Check whether k3s is already installed
-  ansible.builtin.stat:
-    path: /usr/local/bin/k3s
-  register: k3s_installed
-
+# etcd metrics on the node address (port 2381) for the etcd* alerts and dashboards in Prometheus.
 - name: Expose etcd metrics
   ansible.builtin.copy:
     content: |

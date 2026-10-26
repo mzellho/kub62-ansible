@@ -1,10 +1,5 @@
 ---
 # API virtual IP only; LoadBalancer services stay with MetalLB.
-- name: Check whether k3s is already installed
-  ansible.builtin.stat:
-    path: /usr/local/bin/k3s
-  register: k3s_installed
-
 - name: Ensure k3s directories exist
   ansible.builtin.file:
     path: "{{ item.path }}"

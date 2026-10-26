@@ -1,5 +1,5 @@
 ---
-# Pins workloads by node affinity; keep in sync with the hardware.
+# Workloads select or tolerate these labels; keep them in sync with the hardware.
 k3s_node_labels:
   - kub62.local/memory=8g
   - kub62.local/compute=efficient

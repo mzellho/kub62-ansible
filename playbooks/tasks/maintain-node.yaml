@@ -1,0 +1,80 @@
+---
+# One node of playbooks/maintenance.yaml. kub62-node prepares a reboot (checks, drain, hand-overs)
+# and leaves it to the reboot module, which rides out the dropped connection.
+- name: Watch from a server other than this node
+  ansible.builtin.set_fact:
+    maintenance_watch_host: "{{ k3s_api_reachable_all | difference([inventory_hostname]) | first }}"
+
+- name: Read the kube-vip manifest of this server
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/k3s/server/manifests/kube-vip.yaml
+  register: maintenance_kube_vip
+  when:
+    - inventory_hostname in groups['control_plane']
+    - k3s_vip | default('') | length > 0
+
+# k3s applies its own copy on every start; an old one would roll kube-vip back on the whole cluster.
+- name: Require the configured kube-vip version on this server
+  ansible.builtin.assert:
+    that: ('kube-vip:' ~ kube_vip_version) in (maintenance_kube_vip.content | b64decode)
+    fail_msg: "kube-vip manifest on {{ inventory_hostname }} is not at {{ kube_vip_version }}; run playbooks/kub62.yaml -l {{ inventory_hostname }} first"
+  when: maintenance_kube_vip is not skipped
+
+- name: Run kub62-node {{ maintenance_action }}
+  ansible.builtin.command: >-
+    /usr/local/bin/kub62-node -y --no-power {{ kub62_node_flags }} {{ maintenance_action }}
+    {{ k3s_version if maintenance_action == 'k3s-upgrade' else '' }}
+  register: maintenance_run
+  changed_when: maintenance_run.stdout is not search('No reboot required|Already on ')
+
+- name: Show what kub62-node did
+  ansible.builtin.debug:
+    var: maintenance_run.stdout_lines
+  when: maintenance_run is not skipped
+
+- name: Check for a prepared reboot
+  ansible.builtin.stat:
+    path: /run/kub62-node/power-pending
+  register: maintenance_power
+
+- name: Reboot the node
+  ansible.builtin.reboot:
+    msg: kub62-node maintenance
+    reboot_timeout: 1200
+    post_reboot_delay: 20
+  when: maintenance_power.stat.exists
+
+- name: Wait until the node is Ready and uncordoned
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/k3s
+      - kubectl
+      - get
+      - node
+      - "{{ inventory_hostname }}"
+      - -o
+      - "jsonpath={.status.conditions[?(@.type=='Ready')].status}/{.spec.unschedulable}"
+  delegate_to: "{{ maintenance_watch_host }}"
+  register: maintenance_node
+  until: maintenance_node.stdout == 'True/'
+  retries: 120
+  delay: 10
+  changed_when: false
+  when: not ansible_check_mode
+
+# Same rule as kub62-node: detached volumes report unknown.
+- name: Wait until all Longhorn volumes are healthy
+  ansible.builtin.shell: |
+    set -o pipefail
+    /usr/local/bin/k3s kubectl -n longhorn-system get volumes.longhorn.io \
+      -o jsonpath='{range .items[*]}{.status.robustness}/{.status.state}{"\n"}{end}' \
+      | { grep -v -E '^(healthy/.*|unknown/detached)$' || true; } | wc -l
+  args:
+    executable: /bin/bash
+  delegate_to: "{{ maintenance_watch_host }}"
+  register: maintenance_longhorn
+  until: maintenance_longhorn.stdout | trim == '0'
+  retries: 180
+  delay: 20
+  changed_when: false
+  when: not ansible_check_mode

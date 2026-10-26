@@ -1,9 +1,10 @@
 ---
 # Roles follow the groups: the first control_plane host initialises the cluster,
 # further ones join as servers, worker hosts join as agents.
-# Point both at a running server while the first one is being rebuilt.
+# To rebuild the first server, pass -e k3s_init_server=<another server> together with -l <rebuilt host>.
 k3s_init_server: "{{ groups['control_plane'] | first }}"
-k3s_api_host: "{{ k3s_init_server }}"
+# Delegated kubectl calls go to the first server whose API answers (playbooks/api-host.yaml).
+k3s_api_host: "{{ k3s_api_reachable | default(k3s_init_server, true) }}"
 # true moves the init server from SQLite to embedded etcd on the next run.
 k3s_embedded_etcd: true
 k3s_url: "https://{{ k3s_vip | default('', true) or hostvars[k3s_init_server]['ansible_host'] }}:6443"

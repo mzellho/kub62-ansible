@@ -1,0 +1,41 @@
+---
+# Rolling maintenance through kub62-node, one node at a time: kub62-node runs the checks and the
+# hand-overs on each node, this playbook keeps the order and waits for Longhorn between nodes.
+#   ansible-playbook playbooks/maintenance.yaml -e maintenance_action=update
+# update, dist-upgrade, reboot-if-required and reboot go through the workers first;
+# k3s-upgrade (to k3s_version) through the servers first. Nodes in kub62_node_ignore are skipped
+# and accepted as down: -e '{"maintenance_action": "reboot", "kub62_node_ignore": ["kub62-node-1"]}'
+- name: Pick the API host
+  ansible.builtin.import_playbook: api-host.yaml
+
+- name: Check the maintenance request
+  hosts: localhost
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Require a known action
+      ansible.builtin.assert:
+        that: maintenance_action | default('') in ['update', 'dist-upgrade', 'reboot-if-required', 'reboot', 'k3s-upgrade']
+        fail_msg: Pass -e maintenance_action=update|dist-upgrade|reboot-if-required|reboot|k3s-upgrade
+
+- name: Maintain the first group
+  hosts: >-
+    {{ (('control_plane' if maintenance_action | default('') == 'k3s-upgrade' else 'worker')
+       ~ (kub62_node_ignore | default([]) | map('regex_replace', '^(.+)$', ':!\1') | join(''))) }}
+  become: true
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Maintain the node
+      ansible.builtin.include_tasks: tasks/maintain-node.yaml
+
+- name: Maintain the second group
+  hosts: >-
+    {{ (('worker' if maintenance_action | default('') == 'k3s-upgrade' else 'control_plane')
+       ~ (kub62_node_ignore | default([]) | map('regex_replace', '^(.+)$', ':!\1') | join(''))) }}
+  become: true
+  gather_facts: false
+  serial: 1
+  tasks:
+    - name: Maintain the node
+      ansible.builtin.include_tasks: tasks/maintain-node.yaml

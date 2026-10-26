@@ -1,4 +1,10 @@
 ---
+# Before the install: the Restart k3s handler skips fresh installs, k3s reads its config on the first start.
+- name: Check whether k3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_installed
+  tags: [always]
 - name: Install cluster storage prerequisites
   ansible.builtin.import_tasks: packages.yaml
 - name: Separate pod resolver from host resolver

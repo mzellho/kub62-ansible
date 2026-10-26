@@ -2,11 +2,6 @@
 # Pod Security default for namespaces without their own labels, and an API audit log
 # for changes and for everything OIDC users do (Loki reads it via Alloy).
 
-- name: Check whether k3s is already installed
-  ansible.builtin.stat:
-    path: /usr/local/bin/k3s
-  register: k3s_installed
-
 - name: Ensure the audit log directory exists
   ansible.builtin.file:
     path: /var/log/kubernetes/audit

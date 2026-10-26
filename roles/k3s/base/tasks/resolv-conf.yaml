@@ -1,11 +1,6 @@
 ---
 # Pods resolve via the router, which also answers the internal kub62 names;
 # nothing the cluster needs to recover depends on Pi-hole.
-- name: Check whether k3s is already installed
-  ansible.builtin.stat:
-    path: /usr/local/bin/k3s
-  register: k3s_installed
-
 - name: Ensure k3s configuration directories exist
   ansible.builtin.file:
     path: "{{ item }}"

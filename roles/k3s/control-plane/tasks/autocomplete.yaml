@@ -5,11 +5,23 @@
     state: directory
     mode: "0755"
 
+# Rendered every run, so it follows k3s upgrades.
+- name: Render kubectl shell completion
+  ansible.builtin.command:
+    argv: [/usr/local/bin/k3s, kubectl, completion, bash]
+  register: k3s_kubectl_completion
+  changed_when: false
+  # k3s does not exist yet in a dry run of a fresh install.
+  when: not ansible_check_mode
+
 - name: Enable kubectl shell completion
-  ansible.builtin.shell: kubectl completion bash > /etc/bash_completion.d/kubectl
-  args:
-    executable: /bin/bash
-    creates: /etc/bash_completion.d/kubectl
+  ansible.builtin.copy:
+    content: "{{ k3s_kubectl_completion.stdout }}\n"
+    dest: /etc/bash_completion.d/kubectl
+    owner: root
+    group: root
+    mode: "0644"
+  when: k3s_kubectl_completion is not skipped
 
 - name: Enable kubectl alias with completion
   ansible.builtin.blockinfile:

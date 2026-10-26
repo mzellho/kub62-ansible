@@ -1,0 +1,33 @@
+---
+# Picks the first control-plane host whose API answers, so a server that is down does not break
+# delegated kubectl calls (k3s_api_host in group_vars/all/k3s.yaml). Runs on all hosts, not on
+# localhost, because --limit would drop localhost; the probe itself runs once on the controller.
+- name: Find a server with a reachable API
+  hosts: all
+  gather_facts: false
+  become: false
+  tags: [always]
+  # The probe runs once and its result is copied to every host; that needs the linear strategy.
+  strategy: linear
+  tasks:
+    - name: Probe the API port of each server # noqa: run-once[task]
+      ansible.builtin.wait_for:
+        host: "{{ hostvars[item].ansible_host | default(item) }}"
+        port: 6443
+        timeout: 3
+      loop: "{{ groups['control_plane'] }}"
+      register: k3s_api_probe
+      delegate_to: localhost
+      run_once: true
+      failed_when: false
+      check_mode: false
+
+    - name: Use the first server that answers
+      ansible.builtin.set_fact:
+        k3s_api_reachable_all: "{{ k3s_api_probe.results | rejectattr('msg', 'defined') | map(attribute='item') | list }}"
+        k3s_api_reachable: "{{ k3s_api_probe.results | rejectattr('msg', 'defined') | map(attribute='item') | first | default('') }}"
+
+    - name: Report the API host # noqa: run-once[task]
+      ansible.builtin.debug:
+        msg: "API host: {{ k3s_api_reachable | default('none answers, falling back to ' ~ k3s_init_server, true) }}"
+      run_once: true

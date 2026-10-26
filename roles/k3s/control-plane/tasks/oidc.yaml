@@ -1,11 +1,6 @@
 ---
 # Lets the API server accept Authentik tokens, which Headlamp passes through.
 
-- name: Check whether k3s is already installed
-  ansible.builtin.stat:
-    path: /usr/local/bin/k3s
-  register: k3s_installed
-
 - name: Ensure k3s configuration directories exist
   ansible.builtin.file:
     path: "{{ item }}"
