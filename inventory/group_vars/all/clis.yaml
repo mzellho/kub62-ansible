@@ -9,7 +9,7 @@ k9s_version: v0.51.0
 # renovate: datasource=github-releases depName=vmware-tanzu/velero
 velero_version: v1.18.4
 # renovate: datasource=github-releases depName=cert-manager/cmctl
-cmctl_version: v2.6.1
+cmctl_version: v2.6.2
 # renovate: datasource=github-releases depName=scaleway/scaleway-cli
 scw_version: v2.65.2
 # renovate: datasource=github-releases depName=fluxcd/flux2
