@@ -7,7 +7,7 @@ helm_version: v4.3.1
 # renovate: datasource=github-releases depName=derailed/k9s
 k9s_version: v0.51.0
 # renovate: datasource=github-releases depName=vmware-tanzu/velero
-velero_version: v1.18.4
+velero_version: v1.19.0
 # renovate: datasource=github-releases depName=cert-manager/cmctl
 cmctl_version: v2.6.1
 # renovate: datasource=github-releases depName=scaleway/scaleway-cli
